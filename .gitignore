@@ -1,2 +1,16 @@
+# Python cache
 __pycache__
 */__pycache__/**
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Datasets
+datasets/
+
+# YOLO Training Artifacts
+runs/
+yolo11n.pt
+yolo26n.pt
