@@ -65,7 +65,7 @@ class UserInterface:
         ln_entry.pack(pady=20)
 
         # create button to display the content of entry widget
-        button = ttk.Button(root, text="Print Text", 
+        button = ttk.Button(root, text="Submit", 
                         command=save_img)
         button.pack(pady=10)
 
