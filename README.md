@@ -173,3 +173,7 @@ For a quick local webcam smoke test after a model is trained:
 ```bash
 python -m anti_spoofing.test_liveness_integration_zhongyu
 ```
+
+Current webcam calibration uses DenseNet121 as the default liveness model with
+a REAL threshold of `0.43`. In local testing, DenseNet121 separated real faces
+more clearly than ResNet50V2; ResNet50V2 is kept for model comparison.

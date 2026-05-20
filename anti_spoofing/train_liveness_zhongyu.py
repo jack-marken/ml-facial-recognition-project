@@ -25,7 +25,11 @@ except ImportError:
     from model_factory_zhongyu import build_liveness_model
 
 
-def parse_args(default_architecture: str | None = None) -> argparse.Namespace:
+def parse_args(
+    default_architecture: str | None = None,
+    default_output: str | None = None,
+    default_save_weights_only: bool = False,
+) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train a liveness model.")
     parser.add_argument(
         "--architecture",
@@ -45,17 +49,31 @@ def parse_args(default_architecture: str | None = None) -> argparse.Namespace:
     parser.add_argument("--train-base", action="store_true")
     parser.add_argument(
         "--output",
-        default=None,
+        default=default_output,
         help=(
             "Output .keras model path. Defaults to "
             "models/liveness_<architecture>_zhongyu.keras."
         ),
     )
+    parser.add_argument(
+        "--save-weights-only",
+        action="store_true",
+        default=default_save_weights_only,
+        help="Save only model weights. Output path must end with .weights.h5.",
+    )
     return parser.parse_args()
 
 
-def main(default_architecture: str | None = None) -> None:
-    args = parse_args(default_architecture=default_architecture)
+def main(
+    default_architecture: str | None = None,
+    default_output: str | None = None,
+    default_save_weights_only: bool = False,
+) -> None:
+    args = parse_args(
+        default_architecture=default_architecture,
+        default_output=default_output,
+        default_save_weights_only=default_save_weights_only,
+    )
 
     import tensorflow as tf
 
@@ -106,9 +124,9 @@ def main(default_architecture: str | None = None) -> None:
         ],
     )
 
-    output_path = Path(
-        args.output or f"models/liveness_{args.architecture}_zhongyu.keras"
-    )
+    output_path = Path(args.output or f"models/liveness_{args.architecture}_zhongyu.keras")
+    if args.save_weights_only and not output_path.name.endswith(".weights.h5"):
+        raise ValueError("When --save-weights-only is used, output must end with .weights.h5.")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     callbacks = [
@@ -116,6 +134,7 @@ def main(default_architecture: str | None = None) -> None:
             filepath=output_path,
             monitor="val_accuracy",
             save_best_only=True,
+            save_weights_only=args.save_weights_only,
         ),
         tf.keras.callbacks.EarlyStopping(
             monitor="val_loss",
@@ -130,7 +149,10 @@ def main(default_architecture: str | None = None) -> None:
         epochs=args.epochs,
         callbacks=callbacks,
     )
-    model.save(output_path)
+    if args.save_weights_only:
+        model.save_weights(output_path)
+    else:
+        model.save(output_path)
     print(f"Saved liveness model to {output_path}")
 
 

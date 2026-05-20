@@ -45,6 +45,11 @@ def parse_args() -> argparse.Namespace:
         default=0,
         help="OpenCV camera index.",
     )
+    parser.add_argument(
+        "--show-raw",
+        action="store_true",
+        help="Show current-frame raw REAL probability beside the smoothed result.",
+    )
     return parser.parse_args()
 
 
@@ -84,11 +89,9 @@ def main() -> None:
             )
 
             x1, y1, x2, y2 = detection_result["bbox"]
-            label = (
-                f"{liveness_result['liveness']} "
-                f"{liveness_result['confidence']:.2f} "
-                f"(raw {real_probability:.2f})"
-            )
+            label = f"{liveness_result['liveness']} {liveness_result['confidence']:.2f}"
+            if args.show_raw:
+                label = f"{label} (raw {real_probability:.2f})"
             color = (0, 255, 0) if liveness_result["liveness"] == "REAL" else (0, 0, 255)
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             cv2.putText(

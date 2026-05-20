@@ -7,4 +7,8 @@ except ImportError:
 
 
 if __name__ == "__main__":
-    main(default_architecture="resnet50v2")
+    main(
+        default_architecture="resnet50v2",
+        default_output="models/liveness_resnet50v2_zhongyu.weights.h5",
+        default_save_weights_only=True,
+    )

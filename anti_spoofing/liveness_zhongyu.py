@@ -16,7 +16,7 @@ import numpy as np
 
 EXPECTED_FACE_SHAPE = (224, 224, 3)
 DEFAULT_MODEL_PATH = Path("models/liveness_densenet121_zhongyu.keras")
-DEFAULT_THRESHOLD = 0.5
+DEFAULT_THRESHOLD = 0.43
 
 _cached_model = None
 _cached_model_path: Path | None = None
@@ -145,11 +145,45 @@ def _load_model(model_path: Path):
             "Train a model first or pass model_path to predict_liveness()."
         )
 
+    if resolved_model_path.name.endswith(".weights.h5"):
+        architecture = _infer_architecture_from_path(resolved_model_path)
+        try:
+            from .model_factory_zhongyu import build_liveness_model
+        except ImportError:
+            from model_factory_zhongyu import build_liveness_model
+
+        _cached_model = build_liveness_model(architecture=architecture)
+        _cached_model.load_weights(resolved_model_path)
+        _cached_model_path = resolved_model_path
+        return _cached_model
+
     from tensorflow.keras.models import load_model
 
-    _cached_model = load_model(resolved_model_path, compile=False)
-    _cached_model_path = resolved_model_path
-    return _cached_model
+    try:
+        _cached_model = load_model(resolved_model_path, compile=False)
+        _cached_model_path = resolved_model_path
+        return _cached_model
+    except TypeError as error:
+        if "resnet50v2" in resolved_model_path.name.lower():
+            raise TypeError(
+                "ResNet50V2 full .keras model could not be loaded in this Keras "
+                "version. Retrain ResNet50V2 with the default wrapper so it saves "
+                "to models/liveness_resnet50v2_zhongyu.weights.h5, then pass that "
+                "weights file to --model."
+            ) from error
+        raise
+
+
+def _infer_architecture_from_path(model_path: Path) -> str:
+    file_name = model_path.name.lower()
+    if "resnet50v2" in file_name:
+        return "resnet50v2"
+    if "densenet121" in file_name:
+        return "densenet121"
+    raise ValueError(
+        "Cannot infer liveness architecture from weights filename. "
+        "Use a filename containing 'resnet50v2' or 'densenet121'."
+    )
 
 
 def _extract_real_probability(raw_prediction) -> float:
