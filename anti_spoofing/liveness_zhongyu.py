@@ -15,7 +15,7 @@ import numpy as np
 
 
 EXPECTED_FACE_SHAPE = (224, 224, 3)
-DEFAULT_MODEL_PATH = Path("models/liveness_resnet50v2_zhongyu.keras")
+DEFAULT_MODEL_PATH = Path("models/liveness_densenet121_zhongyu.keras")
 DEFAULT_THRESHOLD = 0.5
 
 _cached_model = None
@@ -81,6 +81,28 @@ def predict_liveness(
     batch = np.expand_dims(validated_face.astype("float32"), axis=0)
     raw_prediction = model.predict(batch, verbose=0)
     real_probability = _extract_real_probability(raw_prediction)
+    return format_liveness_result(real_probability, threshold=threshold)
+
+
+def predict_liveness_probability(
+    face_image: np.ndarray,
+    model_path: str | Path = DEFAULT_MODEL_PATH,
+) -> float:
+    """Return the raw REAL probability for temporal smoothing."""
+    validated_face = _validate_face_image(face_image)
+    model = _load_model(Path(model_path))
+
+    batch = np.expand_dims(validated_face.astype("float32"), axis=0)
+    raw_prediction = model.predict(batch, verbose=0)
+    return _extract_real_probability(raw_prediction)
+
+
+def format_liveness_result(
+    real_probability: float,
+    threshold: float = DEFAULT_THRESHOLD,
+) -> dict[str, float | str]:
+    """Convert a REAL probability into the shared liveness output format."""
+    real_probability = float(np.clip(real_probability, 0.0, 1.0))
 
     if real_probability >= threshold:
         return {

@@ -6,14 +6,59 @@ then calls predict_liveness(face_image), matching the final integration flow.
 
 from __future__ import annotations
 
+import argparse
+from collections import deque
+from pathlib import Path
+
 import cv2
 
-from detection.detector import detect_and_crop_face
-from anti_spoofing.liveness_zhongyu import predict_liveness
+from anti_spoofing.liveness_zhongyu import (
+    DEFAULT_MODEL_PATH,
+    DEFAULT_THRESHOLD,
+    format_liveness_result,
+    predict_liveness_probability,
+)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run detection + liveness webcam test.")
+    parser.add_argument(
+        "--model",
+        default=str(DEFAULT_MODEL_PATH),
+        help="Path to the trained liveness .keras model.",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=DEFAULT_THRESHOLD,
+        help="REAL probability threshold.",
+    )
+    parser.add_argument(
+        "--window-size",
+        type=int,
+        default=15,
+        help="Number of recent frames used for smoothing.",
+    )
+    parser.add_argument(
+        "--camera",
+        type=int,
+        default=0,
+        help="OpenCV camera index.",
+    )
+    return parser.parse_args()
 
 
 def main() -> None:
-    webcam = cv2.VideoCapture(0)
+    args = parse_args()
+    model_path = Path(args.model)
+    if not model_path.exists():
+        raise FileNotFoundError(f"Liveness model not found: {model_path}")
+
+    real_probability_window: deque[float] = deque(maxlen=max(1, args.window_size))
+
+    from detection.detector import detect_and_crop_face
+
+    webcam = cv2.VideoCapture(args.camera)
     if not webcam.isOpened():
         raise RuntimeError("Cannot open webcam.")
 
@@ -25,12 +70,24 @@ def main() -> None:
         detection_result = detect_and_crop_face(frame)
         if "face_image" in detection_result:
             face_image = detection_result["face_image"]
-            liveness_result = predict_liveness(face_image)
+            real_probability = predict_liveness_probability(
+                face_image,
+                model_path=model_path,
+            )
+            real_probability_window.append(real_probability)
+            smoothed_probability = sum(real_probability_window) / len(
+                real_probability_window
+            )
+            liveness_result = format_liveness_result(
+                smoothed_probability,
+                threshold=args.threshold,
+            )
 
             x1, y1, x2, y2 = detection_result["bbox"]
             label = (
                 f"{liveness_result['liveness']} "
-                f"{liveness_result['confidence']:.2f}"
+                f"{liveness_result['confidence']:.2f} "
+                f"(raw {real_probability:.2f})"
             )
             color = (0, 255, 0) if liveness_result["liveness"] == "REAL" else (0, 0, 255)
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
@@ -43,6 +100,8 @@ def main() -> None:
                 color,
                 2,
             )
+        else:
+            real_probability_window.clear()
 
         cv2.imshow("Liveness Smoke Test", frame)
         key = cv2.waitKey(1) & 0xFF

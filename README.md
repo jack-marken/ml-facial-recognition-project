@@ -133,28 +133,21 @@ Expected dataset layout:
 
 ```text
 datasets/liveness/
-+-- shared_test/
-|   +-- real/
++-- train/
 |   +-- spoof/
-+-- zhongyu/
-|   +-- train/
-|   |   +-- real/
-|   |   +-- spoof/
-|   +-- val/
-|       +-- real/
-|       +-- spoof/
-+-- kaixiang/
-    +-- train/
-    |   +-- real/
-    |   +-- spoof/
-    +-- val/
-        +-- real/
-        +-- spoof/
+|   +-- real/
++-- val/
+|   +-- spoof/
+|   +-- real/
++-- test/
+    +-- spoof/
+    +-- real/
 ```
 
-Zhongyu's training scripts use `datasets/liveness/zhongyu` by default. The
-`datasets/liveness/shared_test` split should be used later for fair comparison
-between all liveness models.
+The images are expected to be already-cropped face images. They can be slightly
+larger or smaller than `224x224`; the training script resizes them to `224x224`
+before feeding them into the model. The entire `datasets/` directory is ignored
+by Git through `.gitignore`.
 
 Train ResNet50V2:
 

@@ -2,19 +2,16 @@
 
 Expected dataset layout:
 
-datasets/liveness/zhongyu/
+datasets/liveness/
 +-- train/
-|   +-- real/
 |   +-- spoof/
+|   +-- real/
 +-- val/
-    +-- real/
+|   +-- spoof/
+|   +-- real/
++-- test/
     +-- spoof/
-
-Shared evaluation data should be kept at:
-
-datasets/liveness/shared_test/
-+-- real/
-+-- spoof/
+    +-- real/
 """
 
 from __future__ import annotations
@@ -28,18 +25,19 @@ except ImportError:
     from model_factory_zhongyu import build_liveness_model
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(default_architecture: str | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train a liveness model.")
     parser.add_argument(
         "--architecture",
         choices=["resnet50v2", "densenet121"],
-        required=True,
+        default=default_architecture,
+        required=default_architecture is None,
         help="Backbone architecture to train.",
     )
     parser.add_argument(
         "--data-dir",
-        default="datasets/liveness/zhongyu",
-        help="Dataset root containing Zhongyu train/val folders.",
+        default="datasets/liveness",
+        help="Dataset root containing train/val/test folders.",
     )
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=16)
@@ -56,8 +54,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
+def main(default_architecture: str | None = None) -> None:
+    args = parse_args(default_architecture=default_architecture)
 
     import tensorflow as tf
 
@@ -67,8 +65,8 @@ def main() -> None:
 
     if not train_dir.exists() or not val_dir.exists():
         raise FileNotFoundError(
-            "Expected dataset folders at datasets/liveness/zhongyu/train and "
-            "datasets/liveness/zhongyu/val."
+            "Expected dataset folders at datasets/liveness/train and "
+            "datasets/liveness/val."
         )
 
     train_dataset = tf.keras.utils.image_dataset_from_directory(
