@@ -14,6 +14,7 @@ from .embedding_model_zhongyu import (
     generate_embedding,
     load_embedding_model,
 )
+from .recognition_zhongyu import DEFAULT_MODEL_PATH
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp"}
@@ -41,11 +42,12 @@ def main() -> None:
     args = parse_args()
     db_path = Path(args.db_path)
     output_path = Path(args.output)
+    model_path = _resolve_model_path(args.architecture, args.model)
 
     if not db_path.exists():
         raise FileNotFoundError(f"Face database not found: {db_path}")
 
-    model = load_embedding_model(architecture=args.architecture, model_path=args.model)
+    model = load_embedding_model(architecture=args.architecture, model_path=model_path)
     identity_embeddings: dict[str, np.ndarray] = {}
     sample_counts: dict[str, int] = {}
     skipped: list[str] = []
@@ -82,7 +84,7 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     gallery = {
         "architecture": args.architecture,
-        "model_path": args.model,
+        "model_path": str(model_path) if model_path else None,
         "embeddings": identity_embeddings,
         "sample_counts": sample_counts,
         "distance_metric": "cosine",
@@ -110,6 +112,14 @@ def _load_face_image(image_path: Path, cropper) -> np.ndarray | None:
 
     resized_bgr = cv2.resize(frame, (224, 224), interpolation=cv2.INTER_AREA)
     return cv2.cvtColor(resized_bgr, cv2.COLOR_BGR2RGB)
+
+
+def _resolve_model_path(architecture: str, model_path: str | None) -> str | None:
+    if model_path:
+        return model_path
+    if architecture == DEFAULT_ARCHITECTURE and DEFAULT_MODEL_PATH is not None:
+        return str(DEFAULT_MODEL_PATH)
+    return None
 
 
 if __name__ == "__main__":

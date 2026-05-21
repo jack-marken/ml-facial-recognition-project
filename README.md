@@ -132,13 +132,26 @@ After building the gallery, run:
 python -m face_verification.metric_learning.test_recognition_integration_zhongyu
 ```
 
-The default baseline uses an ImageNet-pretrained ResNet34 backbone to generate
-normalized embeddings, because it performed more reliably in local webcam
-testing. EfficientNet-B0 remains available as the lightweight comparison path:
+The default recognition model is the trained Triplet ResNet34 checkpoint at
+`models/recognition_triplet_resnet34_zhongyu.pth`, because it performed more
+reliably in local webcam testing. EfficientNet-B0 remains available as the
+lightweight comparison path:
 
 ```bash
 python -m face_verification.metric_learning.build_gallery_zhongyu --architecture efficientnet_b0
 python -m face_verification.metric_learning.test_recognition_integration_zhongyu --architecture efficientnet_b0
+```
+
+Train the Triplet EfficientNet-B0 model:
+
+```bash
+python -m face_verification.metric_learning.train_triplet_efficientnet_zhongyu --epochs 20 --batch-size 16
+```
+
+Train the Triplet ResNet34 model:
+
+```bash
+python -m face_verification.metric_learning.train_triplet_resnet34_zhongyu --epochs 20 --batch-size 16
 ```
 
 Pretrained torchvision weights are cached locally under `models/torch_cache/`,

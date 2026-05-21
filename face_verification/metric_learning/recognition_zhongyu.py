@@ -16,7 +16,7 @@ from .embedding_model_zhongyu import (
 
 
 DEFAULT_GALLERY_PATH = Path("models/recognition_gallery_zhongyu.pkl")
-DEFAULT_MODEL_PATH: Path | None = None
+DEFAULT_MODEL_PATH: Path | None = Path("models/recognition_triplet_resnet34_zhongyu.pth")
 DEFAULT_THRESHOLD = 0.65
 DISTANCE_METRIC = "cosine"
 
@@ -84,6 +84,8 @@ def format_identity_result(
     return {
         "identity": identity,
         "similarity_score": round(float(best_score), 4),
+        "best_identity": best_identity,
+        "best_similarity_score": round(float(best_score), 4),
         "distance_metric": DISTANCE_METRIC,
         "method": "metric_learning",
     }

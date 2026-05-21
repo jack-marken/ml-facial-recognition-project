@@ -11,6 +11,7 @@ import cv2
 from face_verification.metric_learning.embedding_model_zhongyu import DEFAULT_ARCHITECTURE
 from face_verification.metric_learning.recognition_zhongyu import (
     DEFAULT_GALLERY_PATH,
+    DEFAULT_MODEL_PATH,
     DEFAULT_THRESHOLD,
     calculate_identity_scores,
     format_identity_result,
@@ -20,7 +21,11 @@ from face_verification.metric_learning.recognition_zhongyu import (
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run detection + recognition webcam test.")
     parser.add_argument("--gallery", default=str(DEFAULT_GALLERY_PATH))
-    parser.add_argument("--model", default=None, help="Optional trained .pth checkpoint.")
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Optional trained .pth checkpoint. Defaults to the trained ResNet34 checkpoint.",
+    )
     parser.add_argument(
         "--architecture",
         default=DEFAULT_ARCHITECTURE,
@@ -44,6 +49,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    model_path = _resolve_model_path(args.architecture, args.model)
     if not Path(args.gallery).exists():
         raise FileNotFoundError(
             f"Recognition gallery not found: {args.gallery}. "
@@ -68,7 +74,7 @@ def main() -> None:
             raw_scores = calculate_identity_scores(
                 detection_result["face_image"],
                 gallery_path=args.gallery,
-                model_path=args.model,
+                model_path=model_path,
                 architecture=args.architecture,
             )
             score_window.append(raw_scores)
@@ -84,9 +90,14 @@ def main() -> None:
             label = f"{identity} {score:.2f}"
             if args.show_raw:
                 raw_result = format_identity_result(raw_scores, threshold=args.threshold)
+                raw_best_identity = raw_result.get("best_identity", raw_result["identity"])
+                raw_best_score = raw_result.get(
+                    "best_similarity_score",
+                    raw_result["similarity_score"],
+                )
                 label = (
                     f"{label} "
-                    f"(raw {raw_result['identity']} {raw_result['similarity_score']:.2f})"
+                    f"(raw {raw_best_identity} {raw_best_score:.2f})"
                 )
 
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
@@ -125,6 +136,14 @@ def _average_identity_scores(score_window: deque[dict[str, float]]) -> dict[str,
         for identity in totals
         if counts[identity] > 0
     }
+
+
+def _resolve_model_path(architecture: str, model_path: str | None) -> str | None:
+    if model_path:
+        return model_path
+    if architecture == DEFAULT_ARCHITECTURE and DEFAULT_MODEL_PATH is not None:
+        return str(DEFAULT_MODEL_PATH)
+    return None
 
 
 if __name__ == "__main__":
