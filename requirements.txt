@@ -2,3 +2,5 @@ opencv-python
 deepface
 ultralytics
 numpy
+torch
+torchvision

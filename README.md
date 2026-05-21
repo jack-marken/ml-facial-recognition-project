@@ -74,3 +74,72 @@ Here is a breakdown of the files I have added/updated and how to use them for th
 
 * **`.gitignore` (Updated)**
   Updated to block the massive datasets folder, the runs history folder, Python cache files, and the base YOLO downloaded weights so we don't destroy our GitHub storage limit.
+
+## 2. Face Recognition / Verification Module - Zhongyu
+
+### Metric Learning Pipeline
+This branch prepares a metric-learning recognition pipeline. It consumes the
+same cropped face format produced by detection:
+
+```python
+face_image: numpy.ndarray
+shape = (224, 224, 3)
+format = RGB
+```
+
+The reusable API is:
+
+```python
+from face_verification.metric_learning.recognition_zhongyu import predict_identity_metric
+
+result = predict_identity_metric(face_image)
+
+# Output:
+# {
+#     "identity": "Andrew",
+#     "similarity_score": 0.87,
+#     "distance_metric": "cosine",
+#     "method": "metric_learning"
+# }
+```
+
+### Gallery Construction
+Place registration images under:
+
+```text
+datasets/faces_db/
++-- Andrew/
++-- Daniel/
++-- Jamie/
+```
+
+Build the gallery:
+
+```bash
+python -m face_verification.metric_learning.build_gallery_zhongyu
+```
+
+The output is saved to:
+
+```text
+models/recognition_gallery_zhongyu.pkl
+```
+
+### Live Recognition Test
+After building the gallery, run:
+
+```bash
+python -m face_verification.metric_learning.test_recognition_integration_zhongyu
+```
+
+The default baseline uses an ImageNet-pretrained ResNet34 backbone to generate
+normalized embeddings, because it performed more reliably in local webcam
+testing. EfficientNet-B0 remains available as the lightweight comparison path:
+
+```bash
+python -m face_verification.metric_learning.build_gallery_zhongyu --architecture efficientnet_b0
+python -m face_verification.metric_learning.test_recognition_integration_zhongyu --architecture efficientnet_b0
+```
+
+Pretrained torchvision weights are cached locally under `models/torch_cache/`,
+which is ignored by Git.
