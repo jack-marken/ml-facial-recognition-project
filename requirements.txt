@@ -1,6 +1,8 @@
-opencv-python
 deepface
-ultralytics
 numpy
-tensorflow
+opencv-python
 pillow
+torch
+torchvision
+tensorflow
+ultralytics
