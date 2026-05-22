@@ -41,12 +41,11 @@ Here is a breakdown of the files I have added/updated and how to use them for th
   The final trained AI weights. This is the only model file the system actually needs to run face detection.
 
 * **`detection/detector.py` (USE THIS FOR INTEGRATION)**
-  This is the silent API built for the rest of the team. It does not open a webcam or print to the terminal. You just import it, feed it an image frame, and it returns the exact dictionary format required by the Unified Guidelines.  
-  Example usage:
+  This is the silent API built for the rest of the team. It does not open a webcam or print to the terminal. You just import it, feed it an image frame, and it returns the exact dictionary format required by the Unified Guidelines. It contains two functions depending on what downstream data your module needs:  
+  **1. Basic Face Detection (Bounding Box Only)**:
 
     ```python
     from detection.detector import detect_faces
-    #Example usage:
     result = detect_faces(video_frame)
 
     # Success Output: 
@@ -55,9 +54,20 @@ Here is a breakdown of the files I have added/updated and how to use them for th
     # Error Output: 
     # {"status": "NO_FACE", "message": "No face detected"}
     ```
+  **2. Full Preprocessing (For Liveliness/Recognition/Emotion):**
+    ```python
+    from detection.detector import detect_and_crop_face
+
+    result = detect_and_crop_face(frame)
+    # Success Output: 
+    # {"bbox": [x1, y1, x2, y2], "confidence": 0.85, "face_image": <numpy.ndarray 224x224x3 RGB>}
+    ```
 
 * **`detection/test_webcam.py`**
   A live visual prototype that opens a webcam window and draws bounding boxes. This will serve as the foundation for our final GUI implementation. 
+
+* **`detection/test_crop.py`**  
+  A secondary testing script that shows the detect_and_crop_face API working. It opens your main webcam and a smaller window showing the isolated 224x224 RGB face feed exactly as the downstream modules will receive it. Run via python `detection/test_crop.py`.
 
 * **`detection/train_yolo.py`**
   The script used to train the dataset. Kept purely as a historical record of the methodology.
