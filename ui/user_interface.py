@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 from pathlib import Path
-from detection.detector import detect_faces
+from detection.detector import detect_and_crop_face
 # Authors: Jack (105417647), Patrick (100599029)
 
 class UserInterface:
@@ -49,7 +49,7 @@ class UserInterface:
         root.title("Register")
 
         # Convert NumPy array to PIL image format
-        pil_img = Image.fromarray(cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB))
+        pil_img = Image.fromarray(cropped_img)
 
         # Convert PIL image format to Tkinter PhotoImage format
         img_tk = ImageTk.PhotoImage(image=pil_img)
@@ -110,12 +110,11 @@ class UserInterface:
                 break
             # Check if the user presses the 'Enter' key to register a new employee
             elif keyboard_input & 0xFF == 13:
-                if model_prediction_results[0] is not None:
-                    # Initiate a pop-up window for each detected face on the screen
-                    for i, box in enumerate(model_prediction_results[0].boxes.xyxy):
-                        x1, y1, x2, y2 = map(int, box[:4])
-                        cropped_img = current_video_frame[y1:y2, x1:x2]
-                        self.register_employee(cropped_img)
+                # Use the detect_faces API to extract a cropped image from each detected bounding box
+                cropped_face_img = detect_and_crop_face(current_video_frame)["raw_face_image"]
+
+                # Open a window to register the cropped face in the employee database
+                self.register_employee(cropped_face_img)
 
         # Release the webcam hardware and close all created graphical windows.
         live_webcam_feed.release()
