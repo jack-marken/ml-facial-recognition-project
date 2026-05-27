@@ -1,7 +1,7 @@
 import cv2
 from ultralytics import YOLO
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from PIL import Image, ImageTk, ImageOps
 from pathlib import Path
 
@@ -106,20 +106,17 @@ class UserInterface:
             if not successful_read:
                 break
 
-            # Execute the model to detect faces silently in the current frame.
+            # Use the detector API to extract a cropped image from a detected bounding box
             detection_results = detect_and_crop_face(current_video_frame)
 
-            # Draw bounding boxes
+            # Draw bounding box
             if "face_image" in detection_results:
                 x1, y1, x2, y2 = detection_results["bbox"]
-                # liveness_result = predict_liveness(detection_results["face_image"])
-
-            #     label = f"{liveness_result['liveness']} {liveness_result['confidence']:.2f}"
-            #     # if args.show_raw:
-            #     #     label = f"{label} (raw {real_probability:.2f})"
-                # color = (0, 255, 0) if liveness_result["liveness"] == "REAL" else (0, 0, 255)
-                color = (0, 255, 0)
-                label = "TESTING"
+                
+                # If the anti-spoofing module determines that the face is not real, the bounding box will show grey
+                liveness_result = predict_liveness(detection_results["face_image"])
+                label = "[name]" if liveness_result["liveness"] == "REAL" else ""
+                color = (0, 255, 0) if liveness_result["liveness"] == "REAL" else (150, 150, 150)
                 cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(
                     current_video_frame,
@@ -140,11 +137,12 @@ class UserInterface:
                 break
             # Check if the user presses the 'Enter' key to register a new employee
             elif keyboard_input & 0xFF == 13:
-                # Use the detect_faces API to extract a cropped image from each detected bounding box
-                crop_result = detect_and_crop_face(current_video_frame)
-
-                # Open a window to register the cropped face in the employee database
-                self.register_employee(crop_result["raw_face_image"], crop_result["face_image"])
+                if "face_image" in detection_results:
+                    if liveness_result["liveness"] == "REAL":
+                        # Open a window to register the cropped face in the employee database
+                        self.register_employee(detection_results["raw_face_image"], detection_results["face_image"])
+                    else:
+                        messagebox.showinfo("Anti-spoofing verification", "Face was not clear enough to be verified. Please ensure that your face is fully shown.")
 
         # Release the webcam hardware and close all created graphical windows.
         live_webcam_feed.release()
