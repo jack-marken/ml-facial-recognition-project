@@ -6,6 +6,8 @@ import matplotlib.pyplot as pyplot
 from sklearn import metrics
 from tqdm import tqdm
 
+# Author: Patrick (100599029)
+
 # Defines the exact blueprint of the network so PyTorch knows where to put the saved weights.
 class MobileNetClassificationNetwork(nn.Module):
     def __init__(self, total_unique_identities):

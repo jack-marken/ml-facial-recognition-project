@@ -5,6 +5,8 @@ import matplotlib.pyplot as pyplot
 from sklearn import metrics
 from tqdm import tqdm
 
+# Author: Patrick (100599029)
+
 # This directly imports Zhongyu's model loading function from his module.
 from face_verification.metric_learning.embedding_model_zhongyu import load_embedding_model
 

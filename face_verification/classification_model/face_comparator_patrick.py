@@ -3,6 +3,8 @@ import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 
+# Author: Patrick (100599029)
+
 # This defines the exact blueprint of the network required to load the saved weights.
 class MobileNetClassificationNetwork(nn.Module):
     def __init__(self, total_unique_identities):
