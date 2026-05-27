@@ -2,7 +2,7 @@ import cv2
 from ultralytics import YOLO
 import tkinter as tk
 from tkinter import ttk
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageOps
 from pathlib import Path
 from detection.detector import detect_and_crop_face
 # Authors: Jack (105417647), Patrick (100599029)
@@ -15,7 +15,7 @@ class UserInterface:
         app.start()
     """
 
-    def register_employee(self, cropped_img):
+    def register_employee(self, cropped_img, standardized_img):
         """Tkinter pop-up window for registering a new employee
 
         Displays the employee's identified face, and asks for their first name and last name.
@@ -23,6 +23,7 @@ class UserInterface:
 
         Args:
             cropped_img: a NumPy array representing the part of the image inside a bounding box identified by the custom_face_detection_model.
+            standardized_img: The array in cropped_img, resized to fit the unified standard of 224x224 pixels.
         """
 
         def save_img():
@@ -40,7 +41,9 @@ class UserInterface:
 
             # Write the file to the employee directory. Example: 'datasets/jack_marken/0.jpg'
             filename = target_dir.joinpath(f"{counter}.jpg")
-            cv2.imwrite(filename, cropped_img)
+
+            rgb_face = cv2.cvtColor(standardized_img, cv2.COLOR_BGR2RGB)
+            cv2.imwrite(filename, rgb_face)
             print(f"Saved: {filename}")
             root.destroy()
 
@@ -50,17 +53,21 @@ class UserInterface:
 
         # Convert NumPy array to PIL image format
         pil_img = Image.fromarray(cropped_img)
+        max_size = (300, 300)
+        resized_img = ImageOps.contain(pil_img, max_size)
 
         # Convert PIL image format to Tkinter PhotoImage format
-        img_tk = ImageTk.PhotoImage(image=pil_img)
+        img_tk = ImageTk.PhotoImage(image=resized_img)
         label = ttk.Label(root, image=img_tk)
         label.pack()
         label.image = img_tk # For memory cleanup
 
         # First and last name entry boxes
+        tk.Label(root, text="First name:", padx=20).pack()
         fn_entry = ttk.Entry(root, width=30)
         fn_entry.pack(pady=20, padx=20)
 
+        tk.Label(root, text="Last: name:", padx=20).pack()
         ln_entry = ttk.Entry(root, width=30)
         ln_entry.pack(pady=20)
 
@@ -101,6 +108,7 @@ class UserInterface:
             # Generate a new image frame that includes the drawn bounding boxes and labels.
             frame_with_drawn_bounding_boxes = model_prediction_results[0].plot()
 
+
             # Display the annotated frame in a new desktop window.
             cv2.imshow("Face Detection Live Test", frame_with_drawn_bounding_boxes)
 
@@ -111,10 +119,10 @@ class UserInterface:
             # Check if the user presses the 'Enter' key to register a new employee
             elif keyboard_input & 0xFF == 13:
                 # Use the detect_faces API to extract a cropped image from each detected bounding box
-                cropped_face_img = detect_and_crop_face(current_video_frame)["raw_face_image"]
+                crop_result = detect_and_crop_face(current_video_frame)
 
                 # Open a window to register the cropped face in the employee database
-                self.register_employee(cropped_face_img)
+                self.register_employee(crop_result["raw_face_image"], crop_result["face_image"])
 
         # Release the webcam hardware and close all created graphical windows.
         live_webcam_feed.release()
