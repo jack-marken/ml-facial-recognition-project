@@ -4,7 +4,11 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk, ImageOps
 from pathlib import Path
+
+# APIs from the local project files
 from detection.detector import detect_and_crop_face
+from anti_spoofing.liveness_zhongyu import predict_liveness
+
 # Authors: Jack (105417647), Patrick (100599029)
 
 class UserInterface:
@@ -103,14 +107,32 @@ class UserInterface:
                 break
 
             # Execute the model to detect faces silently in the current frame.
-            model_prediction_results = custom_face_detection_model(current_video_frame, conf=0.5, verbose=False)
+            detection_results = detect_and_crop_face(current_video_frame)
 
-            # Generate a new image frame that includes the drawn bounding boxes and labels.
-            frame_with_drawn_bounding_boxes = model_prediction_results[0].plot()
+            # Draw bounding boxes
+            if "face_image" in detection_results:
+                x1, y1, x2, y2 = detection_results["bbox"]
+                # liveness_result = predict_liveness(detection_results["face_image"])
 
+            #     label = f"{liveness_result['liveness']} {liveness_result['confidence']:.2f}"
+            #     # if args.show_raw:
+            #     #     label = f"{label} (raw {real_probability:.2f})"
+                # color = (0, 255, 0) if liveness_result["liveness"] == "REAL" else (0, 0, 255)
+                color = (0, 255, 0)
+                label = "TESTING"
+                cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(
+                    current_video_frame,
+                    label,
+                    (x1, max(20, y1 - 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    color,
+                    2,
+                )
 
-            # Display the annotated frame in a new desktop window.
-            cv2.imshow("Face Detection Live Test", frame_with_drawn_bounding_boxes)
+            # Display a new image frame in a new desktop window that includes the drawn bounding boxes and labels.
+            cv2.imshow("Face Detection Live Test", current_video_frame)
 
             # Check if the user presses the 'q' key to terminate the loop.
             keyboard_input = cv2.waitKey(1)
