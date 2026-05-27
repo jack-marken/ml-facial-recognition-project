@@ -7,6 +7,8 @@ from pathlib import Path
 
 # APIs from the local project files
 from detection.detector import detect_and_crop_face
+from face_verification.metric_learning.recognition_zhongyu import predict_identity_metric
+from face_verification.metric_learning.build_gallery_zhongyu import main as build_identity_gallery
 from anti_spoofing.liveness_zhongyu import predict_liveness
 
 # Authors: Jack (105417647), Patrick (100599029)
@@ -35,7 +37,7 @@ class UserInterface:
             last_name = ln_entry.get().lower()
 
             # Make directory to store new employee face data
-            target_dir = Path(f"datasets/new_employees/{first_name}_{last_name}")
+            target_dir = Path(f"datasets/faces_db/{first_name}_{last_name}")
             target_dir.mkdir(parents=True, exist_ok=True)
             
             # Title the image '0.jpg'. If it exists, increment to '1.jpg', and so on.
@@ -49,6 +51,7 @@ class UserInterface:
             rgb_face = cv2.cvtColor(standardized_img, cv2.COLOR_BGR2RGB)
             cv2.imwrite(filename, rgb_face)
             print(f"Saved: {filename}")
+            build_identity_gallery()
             root.destroy()
 
         # main application window
@@ -115,8 +118,15 @@ class UserInterface:
                 
                 # If the anti-spoofing module determines that the face is not real, the bounding box will show grey
                 liveness_result = predict_liveness(detection_results["face_image"])
-                label = "[name]" if liveness_result["liveness"] == "REAL" else ""
-                color = (0, 255, 0) if liveness_result["liveness"] == "REAL" else (150, 150, 150)
+                label = ""
+                color = (150, 150, 150)
+                if liveness_result["liveness"] == "REAL":
+                    classification_result = predict_identity_metric(detection_results["face_image"])
+                    color = (0, 255, 0)
+                    if classification_result["similarity_score"] < 0.88:
+                        label = "[unknown]"
+                    else:
+                        label = f"{classification_result['identity']} {classification_result['similarity_score']}" 
                 cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(
                     current_video_frame,
