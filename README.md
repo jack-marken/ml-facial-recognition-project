@@ -258,3 +258,95 @@ python -m anti_spoofing.test_liveness_integration_zhongyu
 Current webcam calibration uses DenseNet121 as the default liveness model with
 a REAL threshold of `0.43`. In local testing, DenseNet121 separated real faces
 more clearly than ResNet50V2; ResNet50V2 is kept for model comparison.
+
+## Supervised Learning (Classification-Based) Face Verification - Patrick (100599029)
+
+### Overview and Methodology
+This branch implements a supervised learning approach to Face Verification. The model was trained as a multi-class classifier to identify 4,000 distinct individuals based on their unique folder identities. 
+
+Once the network learned to accurately map facial features to these specific identities, the final classification layer was bypassed. The network now acts as a feature extractor, outputting a highly discriminative `1024-dimensional` numerical face embedding. Two faces can then be reliably compared by calculating the Cosine Similarity between their respective embeddings to determine if they match.
+
+### Dataset Overview & Training
+The dataset used for this module is sourced from the [11-785 Fall 20 Face Verification Kaggle Competition](https://www.kaggle.com/c/11-785-fall-20-homework-2-part-2/overview/evaluation). 
+
+* **Training Data (`classification_data/train_data/`):** Contains 4,000 unique individual ID folders. Used to train the classification model to recognise and distinguish between these specific people.
+* **Verification Data (`verification_data/`):** Unlabelled face images used for testing the system's ultimate ability to verify identities.
+* **Evaluation Pairs (`verification_pairs_val.txt`):** A list of verification trials containing two image paths and a ground-truth label (`1` for the same person, `0` for different people). Used exclusively to compute the final AUC score.
+* **Architecture:** MobileNetV2 (Pre-trained on ImageNet). Base convolutional layers were frozen, and a custom classification head featuring Dropout (0.5) and an intermediate 1024-node linear layer was appended.
+* **Process:** Trained locally over 10 epochs using Cross-Entropy Loss and Automatic Mixed Precision (AMP).
+* **Note:** To preserve GitHub storage limits, the training datasets are intentionally ignored via `.gitignore`. 
+
+### System Evaluation & ROC Comparison
+To fulfil the assignment requirements of comparing different distance metrics and baseline model architectures, two evaluation scripts were created. These scripts process the Kaggle verification pairs to generate True Positive (TPR) and False Positive (FPR) rates across various threshold settings.
+
+* **`face_verification/classification_model/evaluate_verification_patrick.py`**
+  Evaluates the MobileNetV2 Supervised model. It calculates both Euclidean Distance and Cosine Similarity to determine the superior distance metric. Cosine Similarity performed noticeably better (AUC: 0.7522). This generated the evaluation graph saved at `reports/Patrick_MobileNetV2_ROC_Curve.png`.
+  
+  **To reproduce this evaluation:**
+  ```bash
+  python face_verification/classification_model/evaluate_verification_patrick.py
+  ```
+
+* **`zongyu_test.py`**
+  A unified testing environment built to run the alternate Metric Learning (ResNet34) model through the exact same verification pipeline. This allowed for a strict 1:1 scientific comparison between the two approaches, generating the graph saved at `reports/Zhongyu_ResNet34_ROC_Curve.png`.
+  
+  **To reproduce this evaluation:**
+  ```bash
+  python zongyu_test.py
+  ```
+  
+  **Both code examples above assume you are in the root directory of the folder, and each component are in their correct folders**
+
+### Files Pushed & Integration Guide
+Here is a breakdown of the operational files added and how to deploy them for the frontend live system:
+
+* **`models/verification_classification_patrick.pt`**
+  The final trained AI weights. This is the mathematical core required for the system to extract facial structures.
+
+* **`face_verification/classification_model/train_classifier_patrick.py`**
+  The original script used to train the network on the Kaggle `train_data`. Kept as a record of the methodology and class blueprints.
+
+* **`face_verification/classification_model/face_comparator_patrick.py` (USE THIS FOR FRONTEND INTEGRATION)**
+  This is the dedicated integration API built for the UI. It acts as a wrapper that automatically builds the network blueprint, loads the `.pt` weights, safely strips the classification layer, and handles all the complex vector math behind the scenes.
+
+**Implementation Examples:**
+The `face_comparator_patrick.py` module expects the standardised cropped face image directly from the detection pipeline (`224x224 RGB numpy.ndarray`).
+
+1. **Initialising the System:**
+```python
+# Import the verification class from the module.
+from face_verification.classification_model.face_comparator_patrick import PatrickFaceVerifier
+
+# Initialise the verification system.
+# This automatically loads the neural network architecture and the trained weights.
+face_verification_system = PatrickFaceVerifier()
+```
+
+2. **Registration (Saving a new face):**
+```python
+# Assuming 'new_face_image' is the standardised 224x224 RGB image array.
+# Generate the 1024-dimensional face embedding for the new identity.
+face_embedding = face_verification_system.generate_face_embedding(new_face_image)
+
+# Save this mathematical embedding to the system's database.
+# Example: saved_faces_database["Subject_A"] = face_embedding
+```
+
+3. **Live Verification:**
+```python
+# Assuming 'live_camera_image' is the 224x224 RGB image array currently on screen.
+live_embedding = face_verification_system.generate_face_embedding(live_camera_image)
+
+# Compare the live face against a saved face in the database.
+verification_result = face_verification_system.compare_embeddings(
+    live_webcam_embedding=live_embedding, 
+    saved_database_embedding=saved_faces_database["Subject_A"]
+)
+
+# Handle the result
+if verification_result["match"]:
+    print(f"Identity Verified. Score: {verification_result['similarity_score']}")
+else:
+    print("Match Failed.")
+```
+**Note for UI Integration**: The `compare_embeddings` function defaults to a match threshold of 0.65. If you find the system is letting imposters through durig live testing, you can tighten the security by passing a higher number (e.g., `approval_threshold=0.75`).
