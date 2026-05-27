@@ -1,10 +1,14 @@
 import cv2
 from ultralytics import YOLO
 import tkinter as tk
-from tkinter import ttk
-from PIL import Image, ImageTk
+from tkinter import ttk, messagebox
+from PIL import Image, ImageTk, ImageOps
 from pathlib import Path
-from detection.detector import detect_faces
+
+# APIs from the local project files
+from detection.detector import detect_and_crop_face
+from anti_spoofing.liveness_zhongyu import predict_liveness
+
 # Authors: Jack (105417647), Patrick (100599029)
 
 class UserInterface:
@@ -15,7 +19,7 @@ class UserInterface:
         app.start()
     """
 
-    def register_employee(self, cropped_img):
+    def register_employee(self, cropped_img, standardized_img):
         """Tkinter pop-up window for registering a new employee
 
         Displays the employee's identified face, and asks for their first name and last name.
@@ -23,6 +27,7 @@ class UserInterface:
 
         Args:
             cropped_img: a NumPy array representing the part of the image inside a bounding box identified by the custom_face_detection_model.
+            standardized_img: The array in cropped_img, resized to fit the unified standard of 224x224 pixels.
         """
 
         def save_img():
@@ -40,7 +45,9 @@ class UserInterface:
 
             # Write the file to the employee directory. Example: 'datasets/jack_marken/0.jpg'
             filename = target_dir.joinpath(f"{counter}.jpg")
-            cv2.imwrite(filename, cropped_img)
+
+            rgb_face = cv2.cvtColor(standardized_img, cv2.COLOR_BGR2RGB)
+            cv2.imwrite(filename, rgb_face)
             print(f"Saved: {filename}")
             root.destroy()
 
@@ -49,18 +56,22 @@ class UserInterface:
         root.title("Register")
 
         # Convert NumPy array to PIL image format
-        pil_img = Image.fromarray(cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB))
+        pil_img = Image.fromarray(cropped_img)
+        max_size = (300, 300)
+        resized_img = ImageOps.contain(pil_img, max_size)
 
         # Convert PIL image format to Tkinter PhotoImage format
-        img_tk = ImageTk.PhotoImage(image=pil_img)
+        img_tk = ImageTk.PhotoImage(image=resized_img)
         label = ttk.Label(root, image=img_tk)
         label.pack()
         label.image = img_tk # For memory cleanup
 
         # First and last name entry boxes
+        tk.Label(root, text="First name:", padx=20).pack()
         fn_entry = ttk.Entry(root, width=30)
         fn_entry.pack(pady=20, padx=20)
 
+        tk.Label(root, text="Last: name:", padx=20).pack()
         ln_entry = ttk.Entry(root, width=30)
         ln_entry.pack(pady=20)
 
@@ -95,14 +106,30 @@ class UserInterface:
             if not successful_read:
                 break
 
-            # Execute the model to detect faces silently in the current frame.
-            model_prediction_results = custom_face_detection_model(current_video_frame, conf=0.5, verbose=False)
+            # Use the detector API to extract a cropped image from a detected bounding box
+            detection_results = detect_and_crop_face(current_video_frame)
 
-            # Generate a new image frame that includes the drawn bounding boxes and labels.
-            frame_with_drawn_bounding_boxes = model_prediction_results[0].plot()
+            # Draw bounding box
+            if "face_image" in detection_results:
+                x1, y1, x2, y2 = detection_results["bbox"]
+                
+                # If the anti-spoofing module determines that the face is not real, the bounding box will show grey
+                liveness_result = predict_liveness(detection_results["face_image"])
+                label = "[name]" if liveness_result["liveness"] == "REAL" else ""
+                color = (0, 255, 0) if liveness_result["liveness"] == "REAL" else (150, 150, 150)
+                cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(
+                    current_video_frame,
+                    label,
+                    (x1, max(20, y1 - 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    color,
+                    2,
+                )
 
-            # Display the annotated frame in a new desktop window.
-            cv2.imshow("Face Detection Live Test", frame_with_drawn_bounding_boxes)
+            # Display a new image frame in a new desktop window that includes the drawn bounding boxes and labels.
+            cv2.imshow("Face Detection Live Test", current_video_frame)
 
             # Check if the user presses the 'q' key to terminate the loop.
             keyboard_input = cv2.waitKey(1)
@@ -110,12 +137,12 @@ class UserInterface:
                 break
             # Check if the user presses the 'Enter' key to register a new employee
             elif keyboard_input & 0xFF == 13:
-                if model_prediction_results[0] is not None:
-                    # Initiate a pop-up window for each detected face on the screen
-                    for i, box in enumerate(model_prediction_results[0].boxes.xyxy):
-                        x1, y1, x2, y2 = map(int, box[:4])
-                        cropped_img = current_video_frame[y1:y2, x1:x2]
-                        self.register_employee(cropped_img)
+                if "face_image" in detection_results:
+                    if liveness_result["liveness"] == "REAL":
+                        # Open a window to register the cropped face in the employee database
+                        self.register_employee(detection_results["raw_face_image"], detection_results["face_image"])
+                    else:
+                        messagebox.showinfo("Anti-spoofing verification", "Face was not clear enough to be verified. Please ensure that your face is fully shown.")
 
         # Release the webcam hardware and close all created graphical windows.
         live_webcam_feed.release()

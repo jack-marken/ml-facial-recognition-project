@@ -68,6 +68,7 @@ def detect_and_crop_face(frame):
         
     # Convert the color format from BGR to RGB.
     rgb_face = cv2.cvtColor(cropped_face, cv2.COLOR_BGR2RGB)
+    detection_result["raw_face_image"] = rgb_face
     
     # Resize the cropped image to the unified standard of 224x224 pixels.
     standardized_face = cv2.resize(rgb_face, (224, 224))
