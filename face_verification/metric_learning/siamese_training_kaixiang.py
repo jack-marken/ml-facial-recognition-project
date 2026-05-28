@@ -34,6 +34,7 @@ def make_loaders(args):
         Path(args.data_dir) / "train",
         pairs_per_epoch=args.pairs_per_epoch,
         seed=args.seed,
+        augment=not args.disable_train_augmentation,
     )
     val_dataset = FixedPairDataset(
         Path(args.data_dir) / "val",
@@ -187,7 +188,9 @@ def run_siamese_training(
         f"head_lr={args.head_lr}, "
         f"finetune_lr={args.finetune_lr}, "
         f"margin={args.margin}, "
-        f"weight_decay={args.weight_decay}"
+        f"weight_decay={args.weight_decay}, "
+        f"pairs_per_epoch={args.pairs_per_epoch}, "
+        f"train_augmentation={not args.disable_train_augmentation}"
     )
     print("Preparing datasets and model...", flush=True)
 
@@ -337,6 +340,7 @@ def add_common_training_args(parser, defaults):
     parser.add_argument("--max-negative-pairs", type=int, default=defaults["max_negative_pairs"])
     parser.add_argument("--early-stopping-patience", type=int, default=defaults["early_stopping_patience"])
     parser.add_argument("--disable-early-stopping", action="store_true")
+    parser.add_argument("--disable-train-augmentation", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default=None)
     parser.add_argument("--no-pretrained-backbone", action="store_true")

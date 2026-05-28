@@ -35,7 +35,7 @@ def load_identity_images(data_dir: str | Path) -> dict[str, list[Path]]:
 class SiamesePairDataset(Dataset):
     """Balanced online pair sampler for Siamese metric learning."""
 
-    def __init__(self, data_dir, pairs_per_epoch=None, seed=42):
+    def __init__(self, data_dir, pairs_per_epoch=None, seed=42, augment=True):
         self.identity_to_images = load_identity_images(data_dir)
         self.identities = sorted(self.identity_to_images)
         self.anchor_items = [
@@ -53,6 +53,7 @@ class SiamesePairDataset(Dataset):
 
         self.pairs_per_epoch = pairs_per_epoch or max(2 * len(self.anchor_items), 1000)
         self.random = random.Random(seed)
+        self.augment = augment
 
     def __len__(self):
         return self.pairs_per_epoch
@@ -74,8 +75,8 @@ class SiamesePairDataset(Dataset):
             label = 0.0
 
         return (
-            load_face_tensor(first_path),
-            load_face_tensor(second_path),
+            load_face_tensor(first_path, augment=self.augment, random_generator=self.random),
+            load_face_tensor(second_path, augment=self.augment, random_generator=self.random),
             torch.tensor(label, dtype=torch.float32),
         )
 
@@ -149,14 +150,49 @@ def build_fixed_pairs(
     return pairs
 
 
-def load_face_tensor(image_path: Path) -> torch.Tensor:
+def load_face_tensor(image_path: Path, augment=False, random_generator=None) -> torch.Tensor:
     frame = cv2.imread(str(image_path))
     if frame is None:
         raise ValueError(f"Failed to read image: {image_path}")
 
+    if augment:
+        frame = augment_face_frame(frame, random_generator=random_generator)
+
     resized_bgr = cv2.resize(frame, (224, 224), interpolation=cv2.INTER_AREA)
     rgb = cv2.cvtColor(resized_bgr, cv2.COLOR_BGR2RGB)
     return face_image_to_tensor(rgb)
+
+
+def augment_face_frame(frame, random_generator=None):
+    random_generator = random_generator or random
+    height, width = frame.shape[:2]
+
+    if random_generator.random() < 0.5:
+        frame = cv2.flip(frame, 1)
+
+    scale = random_generator.uniform(0.88, 1.0)
+    crop_width = max(2, int(width * scale))
+    crop_height = max(2, int(height * scale))
+    if crop_width < width and crop_height < height:
+        x1 = random_generator.randint(0, width - crop_width)
+        y1 = random_generator.randint(0, height - crop_height)
+        frame = frame[y1 : y1 + crop_height, x1 : x1 + crop_width]
+
+    angle = random_generator.uniform(-8.0, 8.0)
+    height, width = frame.shape[:2]
+    rotation_matrix = cv2.getRotationMatrix2D((width / 2, height / 2), angle, 1.0)
+    frame = cv2.warpAffine(
+        frame,
+        rotation_matrix,
+        (width, height),
+        flags=cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_REFLECT_101,
+    )
+
+    alpha = random_generator.uniform(0.85, 1.15)
+    beta = random_generator.uniform(-12.0, 12.0)
+    frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+    return frame
 
 
 def face_image_to_tensor(face_image) -> torch.Tensor:

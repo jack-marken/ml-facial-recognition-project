@@ -40,6 +40,7 @@ def main():
         cropper = detect_and_crop_face
 
     identity_embeddings = {}
+    identity_sample_embeddings = {}
     sample_counts = {}
     skipped = []
 
@@ -59,6 +60,9 @@ def main():
             mean_embedding = stacked.mean(axis=0)
             mean_embedding = mean_embedding / max(np.linalg.norm(mean_embedding), 1e-8)
             identity_embeddings[identity_dir.name] = mean_embedding.astype("float32")
+            identity_sample_embeddings[identity_dir.name] = [
+                embedding.astype("float32") for embedding in embeddings
+            ]
             sample_counts[identity_dir.name] = len(embeddings)
 
     if not identity_embeddings:
@@ -69,6 +73,7 @@ def main():
         "model_name": checkpoint["model_name"],
         "model_path": str(args.checkpoint),
         "embeddings": identity_embeddings,
+        "sample_embeddings": identity_sample_embeddings,
         "sample_counts": sample_counts,
         "distance_metric": "euclidean_on_l2_embeddings",
     }

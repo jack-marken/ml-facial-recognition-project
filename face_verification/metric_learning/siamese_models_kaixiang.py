@@ -52,7 +52,7 @@ def load_siamese_checkpoint(checkpoint_path, device=None):
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     model_name = checkpoint["model_name"]
     model = build_siamese_model(model_name, pretrained_backbone=False)
     model.load_state_dict(checkpoint["model_state_dict"])

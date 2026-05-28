@@ -23,16 +23,28 @@ from face_verification.metric_learning.siamese_training_kaixiang import (
 
 DEFAULT_MODELS = [
     {
-        "name": "kaixiang_siamese_resnet18",
+        "name": "kaixiang_contrastive_resnet18",
         "owner": "kaixiang",
         "kind": "siamese",
-        "checkpoint": "models/recognition_siamese_resnet18_kaixiang_final1_best.pth",
+        "checkpoint": "models/recognition_siamese_resnet18_kaixiang_final2_best.pth",
     },
     {
-        "name": "kaixiang_siamese_mobilenetv2",
+        "name": "kaixiang_contrastive_mobilenetv2",
         "owner": "kaixiang",
         "kind": "siamese",
         "checkpoint": "models/recognition_siamese_mobilenetv2_kaixiang_final1_best.pth",
+    },
+    {
+        "name": "kaixiang_triplet_resnet18",
+        "owner": "kaixiang",
+        "kind": "siamese",
+        "checkpoint": "models/recognition_triplet_resnet18_kaixiang_final30b_best.pth",
+    },
+    {
+        "name": "kaixiang_triplet_mobilenetv2",
+        "owner": "kaixiang",
+        "kind": "siamese",
+        "checkpoint": "models/recognition_triplet_mobilenetv2_kaixiang_final30_best.pth",
     },
     {
         "name": "zhongyu_triplet_resnet34",

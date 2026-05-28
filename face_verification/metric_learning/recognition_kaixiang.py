@@ -14,8 +14,11 @@ from face_verification.metric_learning.siamese_models_kaixiang import (
 
 
 DEFAULT_GALLERY_PATH = Path("models/recognition_gallery_kaixiang.pkl")
-DEFAULT_MODEL_PATH = Path("models/recognition_siamese_mobilenetv2_kaixiang_final1_best.pth")
-DEFAULT_DISTANCE_THRESHOLD = 0.8
+DEFAULT_MODEL_PATH = Path("models/recognition_triplet_resnet18_kaixiang_final30b_best.pth")
+DEFAULT_DISTANCE_THRESHOLD = 0.006
+DEFAULT_DISTANCE_MARGIN = 0.0003
+DEFAULT_MATCHING_MODE = "mean"
+DEFAULT_TOP_K = 3
 
 _cached_model = None
 _cached_model_path: Path | None = None
@@ -28,23 +31,59 @@ def predict_identity(
     gallery_path: str | Path = DEFAULT_GALLERY_PATH,
     model_path: str | Path = DEFAULT_MODEL_PATH,
     distance_threshold: float = DEFAULT_DISTANCE_THRESHOLD,
+    distance_margin: float = DEFAULT_DISTANCE_MARGIN,
+    matching_mode: str = DEFAULT_MATCHING_MODE,
+    top_k: int = DEFAULT_TOP_K,
 ) -> dict[str, float | str]:
     scores = calculate_identity_distances(
         face_image,
         gallery_path=gallery_path,
         model_path=model_path,
+        matching_mode=matching_mode,
+        top_k=top_k,
     )
-    return format_identity_result(scores, distance_threshold=distance_threshold)
+    return format_identity_result(
+        scores,
+        distance_threshold=distance_threshold,
+        distance_margin=distance_margin,
+    )
 
 
 def calculate_identity_distances(
     face_image: np.ndarray,
     gallery_path: str | Path = DEFAULT_GALLERY_PATH,
     model_path: str | Path = DEFAULT_MODEL_PATH,
+    matching_mode: str = DEFAULT_MATCHING_MODE,
+    top_k: int = DEFAULT_TOP_K,
 ) -> dict[str, float]:
     model = _get_model(Path(model_path))
     gallery = _get_gallery(Path(gallery_path))
     query_embedding = generate_embedding(model, face_image)
+
+    if matching_mode == "sample" and "sample_embeddings" in gallery:
+        return {
+            identity: float(
+                min(np.linalg.norm(query_embedding - sample_embedding) for sample_embedding in sample_embeddings)
+            )
+            for identity, sample_embeddings in gallery["sample_embeddings"].items()
+        }
+
+    if matching_mode == "topk" and "sample_embeddings" in gallery:
+        safe_top_k = max(1, int(top_k))
+        return {
+            identity: float(
+                np.mean(
+                    sorted(
+                        np.linalg.norm(query_embedding - sample_embedding)
+                        for sample_embedding in sample_embeddings
+                    )[:safe_top_k]
+                )
+            )
+            for identity, sample_embeddings in gallery["sample_embeddings"].items()
+        }
+
+    if matching_mode != "mean":
+        raise ValueError("matching_mode must be 'mean', 'sample', or 'topk'.")
 
     return {
         identity: float(np.linalg.norm(query_embedding - gallery_embedding))
@@ -55,6 +94,7 @@ def calculate_identity_distances(
 def format_identity_result(
     identity_distances: dict[str, float],
     distance_threshold: float = DEFAULT_DISTANCE_THRESHOLD,
+    distance_margin: float = DEFAULT_DISTANCE_MARGIN,
 ) -> dict[str, float | str]:
     if not identity_distances:
         return {
@@ -66,15 +106,26 @@ def format_identity_result(
 
     best_identity = min(identity_distances, key=identity_distances.get)
     best_distance = float(identity_distances[best_identity])
-    identity = best_identity if best_distance <= distance_threshold else "UNKNOWN"
     similarity_score = 1.0 / (1.0 + best_distance)
+    top_matches = sorted(identity_distances.items(), key=lambda item: item[1])[:3]
+    second_distance = float(top_matches[1][1]) if len(top_matches) > 1 else float("inf")
+    distance_gap = second_distance - best_distance
+    is_ambiguous = distance_gap < distance_margin
+    identity = best_identity if best_distance <= distance_threshold and not is_ambiguous else "UNKNOWN"
 
     return {
         "identity": identity,
         "best_identity": best_identity,
         "distance": round(best_distance, 4),
         "distance_threshold": round(distance_threshold, 4),
+        "distance_margin": round(distance_margin, 4),
+        "distance_gap": round(distance_gap, 4),
+        "ambiguous": is_ambiguous,
         "similarity_score": round(similarity_score, 4),
+        "top_matches": [
+            {"identity": match_identity, "distance": round(float(distance), 4)}
+            for match_identity, distance in top_matches
+        ],
         "method": "siamese_metric_learning",
     }
 

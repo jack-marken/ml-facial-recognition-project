@@ -23,6 +23,12 @@ same identity      = 1
 different identity = 0
 ```
 
+The training sampler generates balanced positive and negative face pairs. Train
+time augmentation is enabled by default to improve webcam/domain robustness:
+horizontal flip, random crop/scale, small rotation, and brightness/contrast
+jitter. Validation and test pairs remain deterministic and unaugmented for fair
+ROC/AUC reporting.
+
 ## Dataset
 
 Expected local-only structure:
@@ -62,6 +68,9 @@ MobileNetV2:
 ```bash
 python -m face_verification.metric_learning.train_siamese_mobilenetv2_kaixiang --run-name final1
 ```
+
+The default tuned settings use 3000 sampled pairs per epoch. For a quick smoke
+test, override the pair count and epoch count from the command line.
 
 ## Evaluate
 

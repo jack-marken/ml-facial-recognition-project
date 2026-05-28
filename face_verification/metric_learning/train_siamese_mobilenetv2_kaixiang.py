@@ -22,7 +22,7 @@ MOBILENETV2_DEFAULTS = {
     "finetune_lr": 1e-4,
     "weight_decay": 1e-4,
     "margin": 1.0,
-    "pairs_per_epoch": 1000,
+    "pairs_per_epoch": 3000,
     "max_positive_pairs_per_identity": 20,
     "max_negative_pairs": 1000,
     "early_stopping_patience": 5,
