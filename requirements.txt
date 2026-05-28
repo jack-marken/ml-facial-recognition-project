@@ -6,3 +6,6 @@ torch
 torchvision
 tensorflow
 ultralytics
+mediapipe
+scikit-learn
+matplotlib
