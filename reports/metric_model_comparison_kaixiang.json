@@ -1,0 +1,78 @@
+{
+  "split": "test",
+  "pairs": 1200,
+  "results": [
+    {
+      "name": "kaixiang_siamese_resnet18",
+      "owner": "kaixiang",
+      "model_label": "resnet18",
+      "checkpoint": "models\\recognition_siamese_resnet18_kaixiang_final1_best.pth",
+      "euclidean": {
+        "accuracy": 0.737500011920929,
+        "best_distance_threshold": 0.3800865113735199,
+        "roc_auc": 0.8042166666666666
+      },
+      "cosine": {
+        "accuracy": 0.737500011920929,
+        "best_similarity_threshold": 0.9277667999267578,
+        "roc_auc": 0.8042166666666666
+      },
+      "fps": 33.33204680891451,
+      "pairs": 1200
+    },
+    {
+      "name": "kaixiang_siamese_mobilenetv2",
+      "owner": "kaixiang",
+      "model_label": "mobilenetv2",
+      "checkpoint": "models\\recognition_siamese_mobilenetv2_kaixiang_final1_best.pth",
+      "euclidean": {
+        "accuracy": 0.7141666412353516,
+        "best_distance_threshold": 0.4669625759124756,
+        "roc_auc": 0.7739222222222222
+      },
+      "cosine": {
+        "accuracy": 0.7141666412353516,
+        "best_similarity_threshold": 0.8896968960762024,
+        "roc_auc": 0.773925
+      },
+      "fps": 62.10384957077779,
+      "pairs": 1200
+    },
+    {
+      "name": "zhongyu_triplet_resnet34",
+      "owner": "zhongyu",
+      "model_label": "resnet34",
+      "checkpoint": "models\\recognition_triplet_resnet34_zhongyu.pth",
+      "euclidean": {
+        "accuracy": 0.6966666579246521,
+        "best_distance_threshold": 0.8924750089645386,
+        "roc_auc": 0.764313888888889
+      },
+      "cosine": {
+        "accuracy": 0.6966666579246521,
+        "best_similarity_threshold": 0.6017439961433411,
+        "roc_auc": 0.7643111111111112
+      },
+      "fps": 25.812347708223236,
+      "pairs": 1200
+    },
+    {
+      "name": "zhongyu_triplet_efficientnet_b0",
+      "owner": "zhongyu",
+      "model_label": "efficientnet_b0",
+      "checkpoint": "models\\recognition_triplet_efficientnet_zhongyu.pth",
+      "euclidean": {
+        "accuracy": 0.6291666626930237,
+        "best_distance_threshold": 1.2536910772323608,
+        "roc_auc": 0.6373833333333333
+      },
+      "cosine": {
+        "accuracy": 0.6291666626930237,
+        "best_similarity_threshold": 0.2141348421573639,
+        "roc_auc": 0.6373861111111112
+      },
+      "fps": 51.824116928064605,
+      "pairs": 1200
+    }
+  ]
+}
