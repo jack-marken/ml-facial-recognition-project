@@ -21,8 +21,10 @@ from pathlib import Path
 
 try:
     from .model_factory_zhongyu import build_liveness_model
+    from .reporting_liveness_zhongyu import save_liveness_report
 except ImportError:
     from model_factory_zhongyu import build_liveness_model
+    from reporting_liveness_zhongyu import save_liveness_report
 
 
 def parse_args(
@@ -61,6 +63,11 @@ def parse_args(
         default=default_save_weights_only,
         help="Save only model weights. Output path must end with .weights.h5.",
     )
+    parser.add_argument(
+        "--report-dir",
+        default="anti_spoofing/report_liveness_zhongyu",
+        help="Directory for training tables and figures.",
+    )
     return parser.parse_args()
 
 
@@ -80,11 +87,12 @@ def main(
     data_dir = Path(args.data_dir)
     train_dir = data_dir / "train"
     val_dir = data_dir / "val"
+    test_dir = data_dir / "test"
 
-    if not train_dir.exists() or not val_dir.exists():
+    if not train_dir.exists() or not val_dir.exists() or not test_dir.exists():
         raise FileNotFoundError(
-            "Expected dataset folders at datasets/liveness/train and "
-            "datasets/liveness/val."
+            "Expected dataset folders at datasets/liveness/train, "
+            "datasets/liveness/val, and datasets/liveness/test."
         )
 
     train_dataset = tf.keras.utils.image_dataset_from_directory(
@@ -105,10 +113,20 @@ def main(
         batch_size=args.batch_size,
         shuffle=False,
     )
+    test_dataset = tf.keras.utils.image_dataset_from_directory(
+        test_dir,
+        labels="inferred",
+        label_mode="binary",
+        class_names=["spoof", "real"],
+        image_size=(224, 224),
+        batch_size=args.batch_size,
+        shuffle=False,
+    )
 
     autotune = tf.data.AUTOTUNE
     train_dataset = train_dataset.prefetch(autotune)
     val_dataset = val_dataset.prefetch(autotune)
+    test_dataset = test_dataset.prefetch(autotune)
 
     model = build_liveness_model(
         architecture=args.architecture,
@@ -143,7 +161,7 @@ def main(
         ),
     ]
 
-    model.fit(
+    history = model.fit(
         train_dataset,
         validation_data=val_dataset,
         epochs=args.epochs,
@@ -154,6 +172,16 @@ def main(
     else:
         model.save(output_path)
     print(f"Saved liveness model to {output_path}")
+    save_liveness_report(
+        model=model,
+        history=history,
+        args=args,
+        output_path=output_path,
+        data_dir=data_dir,
+        report_root=Path(args.report_dir),
+        test_dataset=test_dataset,
+    )
+    print(f"Saved liveness report artifacts to {Path(args.report_dir) / args.architecture}")
 
 
 if __name__ == "__main__":

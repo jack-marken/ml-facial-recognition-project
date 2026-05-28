@@ -12,7 +12,12 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
-from .embedding_model_zhongyu import FaceEmbeddingModel, preprocess_face_image
+from .embedding_model_zhongyu import (
+    FaceEmbeddingModel,
+    load_embedding_model,
+    preprocess_face_image,
+)
+from .reporting_recognition_zhongyu import save_recognition_report
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp"}
@@ -70,6 +75,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train EfficientNet-B0 with triplet loss.")
     parser.add_argument("--data-dir", default="datasets/recognition/train")
     parser.add_argument("--val-dir", default="datasets/recognition/val")
+    parser.add_argument("--test-dir", default="datasets/recognition/test")
     parser.add_argument("--output", default="models/recognition_triplet_efficientnet_zhongyu.pth")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=16)
@@ -77,6 +83,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--margin", type=float, default=0.3)
     parser.add_argument("--train-backbone", action="store_true")
     parser.add_argument("--num-workers", type=int, default=0)
+    parser.add_argument(
+        "--report-dir",
+        default="face_verification/metric_learning/report_recognition_zhongyu",
+        help="Directory for training tables and figures.",
+    )
+    parser.add_argument(
+        "--max-eval-pairs",
+        type=int,
+        default=20000,
+        help="Maximum number of verification pairs used for report evaluation.",
+    )
+    parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
 
 
@@ -121,6 +139,7 @@ def main() -> None:
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     best_val_loss = float("inf")
+    history = []
 
     for epoch in range(1, args.epochs + 1):
         train_loss = _run_epoch(
@@ -142,6 +161,13 @@ def main() -> None:
             f"Epoch {epoch:02d}/{args.epochs} "
             f"train_loss={train_loss:.4f} val_loss={val_loss:.4f}"
         )
+        history.append(
+            {
+                "epoch": epoch,
+                "train_loss": round(float(train_loss), 6),
+                "val_loss": round(float(val_loss), 6),
+            }
+        )
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -155,6 +181,26 @@ def main() -> None:
                 output_path,
             )
             print(f"Saved best model to {output_path}")
+
+    best_model = load_embedding_model(
+        architecture="efficientnet_b0",
+        model_path=output_path,
+        device=device,
+        pretrained=False,
+    )
+    save_recognition_report(
+        model=best_model,
+        history=history,
+        args=args,
+        architecture="efficientnet_b0",
+        output_path=output_path,
+        report_root=Path(args.report_dir),
+        embedding_size=model.embedding_dim,
+    )
+    print(
+        "Saved recognition report artifacts to "
+        f"{Path(args.report_dir) / 'efficientnet_b0'}"
+    )
 
 
 def _run_epoch(

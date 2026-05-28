@@ -1,0 +1,37 @@
+{
+  "model_name": "liveness_resnet50v2",
+  "architecture": "resnet50v2",
+  "input_image_size": [
+    224,
+    224,
+    3
+  ],
+  "optimizer": "Adam",
+  "learning_rate": 0.0001,
+  "batch_size": 16,
+  "epochs": 20,
+  "loss_function": "binary_crossentropy",
+  "metrics": [
+    "accuracy",
+    "precision",
+    "recall"
+  ],
+  "dataset_name": "datasets\\liveness",
+  "sample_counts": {
+    "train": {
+      "real": 1000,
+      "spoof": 1000
+    },
+    "val": {
+      "real": 200,
+      "spoof": 200
+    },
+    "test": {
+      "real": 200,
+      "spoof": 200
+    }
+  },
+  "data_augmentation": "none",
+  "train_base": false,
+  "model_output": "models\\liveness_resnet50v2_zhongyu.weights.h5"
+}

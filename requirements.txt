@@ -1,4 +1,5 @@
 deepface
+matplotlib
 numpy
 opencv-python
 pillow

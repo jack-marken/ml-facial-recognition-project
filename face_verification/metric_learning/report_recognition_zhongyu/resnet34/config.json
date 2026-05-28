@@ -1,0 +1,22 @@
+{
+  "backbone_model": "resnet34",
+  "embedding_size": 512,
+  "input_image_size": [
+    224,
+    224,
+    3
+  ],
+  "optimizer": "Adam",
+  "learning_rate": 0.0001,
+  "batch_size": 16,
+  "epochs": 20,
+  "loss_function": "TripletMarginLoss",
+  "margin": 0.3,
+  "distance_metric": "cosine_similarity",
+  "dataset_name": "datasets\\recognition",
+  "train_sample_count": 526,
+  "validation_sample_count": 116,
+  "test_sample_count": 99,
+  "train_backbone": false,
+  "model_output": "models\\recognition_triplet_resnet34_zhongyu.pth"
+}

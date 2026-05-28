@@ -1,0 +1,37 @@
+{
+  "model_name": "liveness_densenet121",
+  "architecture": "densenet121",
+  "input_image_size": [
+    224,
+    224,
+    3
+  ],
+  "optimizer": "Adam",
+  "learning_rate": 0.0001,
+  "batch_size": 16,
+  "epochs": 20,
+  "loss_function": "binary_crossentropy",
+  "metrics": [
+    "accuracy",
+    "precision",
+    "recall"
+  ],
+  "dataset_name": "datasets\\liveness",
+  "sample_counts": {
+    "train": {
+      "real": 1000,
+      "spoof": 1000
+    },
+    "val": {
+      "real": 200,
+      "spoof": 200
+    },
+    "test": {
+      "real": 200,
+      "spoof": 200
+    }
+  },
+  "data_augmentation": "none",
+  "train_base": false,
+  "model_output": "models\\liveness_densenet121_zhongyu.keras"
+}
