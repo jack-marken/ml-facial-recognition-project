@@ -9,7 +9,8 @@ from pathlib import Path
 from detection.detector import detect_and_crop_face
 from face_verification.metric_learning.recognition_zhongyu import predict_identity_metric
 from face_verification.metric_learning.build_gallery_zhongyu import main as build_identity_gallery
-from anti_spoofing.liveness_zhongyu import predict_liveness
+# from anti_spoofing.liveness_zhongyu import predict_liveness
+from anti_spoofing.liveness_kaixiang import predict_liveness
 
 # Authors: Jack (105417647), Patrick (100599029)
 
@@ -117,7 +118,7 @@ class UserInterface:
                 x1, y1, x2, y2 = detection_results["bbox"]
                 
                 # If the anti-spoofing module determines that the face is not real, the bounding box will show grey
-                liveness_result = predict_liveness(detection_results["face_image"])
+                liveness_result = predict_liveness(detection_results["face_image"], checkpoint_path="models/liveness_efficientnetb0_kaixiang_final1_best.pth", threshold=0.81)
                 label = ""
                 color = (150, 150, 150)
                 if liveness_result["liveness"] == "REAL":
