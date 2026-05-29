@@ -67,10 +67,194 @@ Here is a breakdown of the files I have added/updated and how to use them for th
   A live visual prototype that opens a webcam window and draws bounding boxes. This will serve as the foundation for our final GUI implementation. 
 
 * **`detection/test_crop.py`**  
-  A secondary testing script that shows the detect_and_crop_face API working. It opens your main webcam and a smaller window showing the isolated 224x224 RGB face feed exactly as the downstream modules will receive it. Run via python `detection/test_crop.py`.
+  A secondary testing script that shows the detect_and_crop_face API working. It opens your main webcam and a smaller window showing the isolated 224x224 RGB face feed exactly as the downstream modules will receive it. Run via `python -m detection.test_crop`.
 
 * **`detection/train_yolo.py`**
   The script used to train the dataset. Kept purely as a historical record of the methodology.
 
 * **`.gitignore` (Updated)**
   Updated to block the massive datasets folder, the runs history folder, Python cache files, and the base YOLO downloaded weights so we don't destroy our GitHub storage limit.
+
+## Face Recognition / Verification Module - Zhongyu
+
+### Metric Learning Pipeline
+This branch prepares a metric-learning recognition pipeline. It consumes the same cropped face format produced by detection:
+
+```python
+face_image: numpy.ndarray
+shape = (224, 224, 3)
+format = RGB
+```
+
+The reusable API is:
+
+```python
+from face_verification.metric_learning.recognition_zhongyu import predict_identity_metric
+
+result = predict_identity_metric(face_image)
+
+# Output:
+# {
+#     "identity": "Andrew",
+#     "similarity_score": 0.87,
+#     "distance_metric": "cosine",
+#     "method": "metric_learning"
+# }
+```
+
+### Gallery Construction
+Place registration images under:
+
+```text
+datasets/faces_db/
++-- Andrew/
++-- Daniel/
++-- Jamie/
+```
+
+Build the gallery:
+
+```bash
+python -m face_verification.metric_learning.build_gallery_zhongyu
+```
+
+The output is saved to:
+
+```text
+models/recognition_gallery_zhongyu.pkl
+```
+
+### Live Recognition Test
+After building the gallery, run:
+
+```bash
+python -m face_verification.metric_learning.test_recognition_integration_zhongyu
+```
+
+The default recognition model is the trained Triplet ResNet34 checkpoint at
+`models/recognition_triplet_resnet34_zhongyu.pth`, because it performed more
+reliably in local webcam testing. EfficientNet-B0 remains available as the
+lightweight comparison path:
+
+```bash
+python -m face_verification.metric_learning.build_gallery_zhongyu --architecture efficientnet_b0
+python -m face_verification.metric_learning.test_recognition_integration_zhongyu --architecture efficientnet_b0
+```
+
+Train the Triplet EfficientNet-B0 model:
+
+```bash
+python -m face_verification.metric_learning.train_triplet_efficientnet_zhongyu --epochs 20 --batch-size 16
+```
+
+Train the Triplet ResNet34 model:
+
+```bash
+python -m face_verification.metric_learning.train_triplet_resnet34_zhongyu --epochs 20 --batch-size 16
+```
+
+Pretrained torchvision weights are cached locally under `models/torch_cache/`,
+which is ignored by Git.
+
+## Liveness Detection Module - Zhongyu
+
+### Integration Contract
+The liveness module follows the unified downstream interface. It does not run
+face detection by itself. It expects a cropped face image from the shared
+detection/preprocessing pipeline:
+
+```python
+face_image: numpy.ndarray
+shape = (224, 224, 3)
+format = RGB
+```
+
+Use the reusable API from `anti_spoofing/liveness_zhongyu.py`:
+
+```python
+from anti_spoofing.liveness_zhongyu import predict_liveness
+
+result = predict_liveness(face_image)
+
+# Output:
+# {"liveness": "REAL", "confidence": 0.93}
+# or
+# {"liveness": "SPOOF", "confidence": 0.91}
+```
+
+The valid liveness labels are `REAL` and `SPOOF`. Recognition should only run
+when this module returns `REAL`.
+
+### Detection Integration
+The detection module now exposes the shared crop API required by downstream
+modules. Use `detect_and_crop_face(frame)` to obtain the standardized
+`224x224 RGB` face image, then pass that directly to liveness:
+
+```python
+from detection.detector import detect_and_crop_face
+from anti_spoofing.liveness_zhongyu import predict_liveness
+
+result = detect_and_crop_face(frame)
+
+if "face_image" in result:
+    liveness_result = predict_liveness(result["face_image"])
+```
+
+`preprocess_face_from_bbox(...)` remains available inside the Zhongyu module as
+a fallback helper, but the preferred integration path is the shared detection
+API above.
+
+### Model Plan
+This branch prepares two alternative transfer-learning models for comparison:
+
+* `ResNet50V2 + binary classification head`
+* `DenseNet121 + binary classification head`
+
+Expected dataset layout:
+
+```text
+datasets/liveness/
++-- train/
+|   +-- spoof/
+|   +-- real/
++-- val/
+|   +-- spoof/
+|   +-- real/
++-- test/
+    +-- spoof/
+    +-- real/
+```
+
+The images are expected to be already-cropped face images. They can be slightly
+larger or smaller than `224x224`; the training script resizes them to `224x224`
+before feeding them into the model. The entire `datasets/` directory is ignored
+by Git through `.gitignore`.
+
+Train ResNet50V2:
+
+```bash
+python -m anti_spoofing.train_liveness_zhongyu --architecture resnet50v2
+```
+
+Train DenseNet121:
+
+```bash
+python -m anti_spoofing.train_liveness_zhongyu --architecture densenet121
+```
+
+Saved model paths:
+
+```text
+models/liveness_resnet50v2_zhongyu.keras
+models/liveness_densenet121_zhongyu.keras
+```
+
+For a quick local webcam smoke test after a model is trained:
+
+```bash
+python -m anti_spoofing.test_liveness_integration_zhongyu
+```
+
+Current webcam calibration uses DenseNet121 as the default liveness model with
+a REAL threshold of `0.43`. In local testing, DenseNet121 separated real faces
+more clearly than ResNet50V2; ResNet50V2 is kept for model comparison.
