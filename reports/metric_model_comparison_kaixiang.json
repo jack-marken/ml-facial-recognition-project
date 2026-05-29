@@ -1,0 +1,114 @@
+{
+  "split": "test",
+  "pairs": 1200,
+  "results": [
+    {
+      "name": "kaixiang_contrastive_resnet18",
+      "owner": "kaixiang",
+      "model_label": "resnet18",
+      "checkpoint": "models\\recognition_siamese_resnet18_kaixiang_final2_best.pth",
+      "euclidean": {
+        "accuracy": 0.7708333134651184,
+        "best_distance_threshold": 0.39005282521247864,
+        "roc_auc": 0.8375027777777777
+      },
+      "cosine": {
+        "accuracy": 0.7708333134651184,
+        "best_similarity_threshold": 0.8371734619140625,
+        "roc_auc": 0.8375027777777777
+      },
+      "fps": 44.350437286450905,
+      "pairs": 1200
+    },
+    {
+      "name": "kaixiang_contrastive_mobilenetv2",
+      "owner": "kaixiang",
+      "model_label": "mobilenetv2",
+      "checkpoint": "models\\recognition_siamese_mobilenetv2_kaixiang_final1_best.pth",
+      "euclidean": {
+        "accuracy": 0.7141666412353516,
+        "best_distance_threshold": 0.4669625759124756,
+        "roc_auc": 0.7739222222222222
+      },
+      "cosine": {
+        "accuracy": 0.7141666412353516,
+        "best_similarity_threshold": 0.8896968960762024,
+        "roc_auc": 0.773925
+      },
+      "fps": 59.68132351611678,
+      "pairs": 1200
+    },
+    {
+      "name": "kaixiang_triplet_resnet18",
+      "owner": "kaixiang",
+      "model_label": "resnet18",
+      "checkpoint": "models\\recognition_triplet_resnet18_kaixiang_final30b_best.pth",
+      "euclidean": {
+        "accuracy": 0.809166669845581,
+        "best_distance_threshold": 0.006127915810793638,
+        "roc_auc": 0.8880305555555555
+      },
+      "cosine": {
+        "accuracy": 0.8100000023841858,
+        "best_similarity_threshold": 0.9999809265136719,
+        "roc_auc": 0.8882611111111111
+      },
+      "fps": 43.66887964293401,
+      "pairs": 1200
+    },
+    {
+      "name": "kaixiang_triplet_mobilenetv2",
+      "owner": "kaixiang",
+      "model_label": "mobilenetv2",
+      "checkpoint": "models\\recognition_triplet_mobilenetv2_kaixiang_final30_best.pth",
+      "euclidean": {
+        "accuracy": 0.7191666960716248,
+        "best_distance_threshold": 0.006327632814645767,
+        "roc_auc": 0.779363888888889
+      },
+      "cosine": {
+        "accuracy": 0.7183333039283752,
+        "best_similarity_threshold": 0.9999799728393555,
+        "roc_auc": 0.7790888888888889
+      },
+      "fps": 63.34930800516958,
+      "pairs": 1200
+    },
+    {
+      "name": "zhongyu_triplet_resnet34",
+      "owner": "zhongyu",
+      "model_label": "resnet34",
+      "checkpoint": "models\\recognition_triplet_resnet34_zhongyu.pth",
+      "euclidean": {
+        "accuracy": 0.6966666579246521,
+        "best_distance_threshold": 0.8924750089645386,
+        "roc_auc": 0.764313888888889
+      },
+      "cosine": {
+        "accuracy": 0.6966666579246521,
+        "best_similarity_threshold": 0.6017439961433411,
+        "roc_auc": 0.7643111111111112
+      },
+      "fps": 27.001623607632975,
+      "pairs": 1200
+    },
+    {
+      "name": "zhongyu_triplet_efficientnet_b0",
+      "owner": "zhongyu",
+      "model_label": "efficientnet_b0",
+      "checkpoint": "models\\recognition_triplet_efficientnet_zhongyu.pth",
+      "euclidean": {
+        "accuracy": 0.6291666626930237,
+        "best_distance_threshold": 1.2536910772323608,
+        "roc_auc": 0.6373833333333333
+      },
+      "cosine": {
+        "accuracy": 0.6291666626930237,
+        "best_similarity_threshold": 0.2141348421573639,
+        "roc_auc": 0.6373861111111112
+      },
+      "fps": 52.777302171238155,
+      "pairs": 1200
+    }
+  ]
+}
