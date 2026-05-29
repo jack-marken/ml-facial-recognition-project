@@ -1,0 +1,81 @@
+{
+  "split": "test",
+  "results": [
+    {
+      "accuracy": 0.9931872037914692,
+      "precision": 0.9891540130151844,
+      "recall": 0.9941860465116279,
+      "f1": 0.9916636462486408,
+      "tp": 1368,
+      "tn": 1985,
+      "fp": 15,
+      "fn": 8,
+      "threshold": 0.5,
+      "loss": 0.024645544499470366,
+      "fps": 119.1220690805163,
+      "samples": 3376,
+      "split": "test",
+      "checkpoint": "models\\glasses_mobilenetv2_kaixiang_final_best.pth",
+      "model_name": "mobilenetv2",
+      "confusion_matrix": {
+        "rows": [
+          "true_without_glasses",
+          "true_with_glasses"
+        ],
+        "cols": [
+          "pred_without_glasses",
+          "pred_with_glasses"
+        ],
+        "values": [
+          [
+            1985,
+            15
+          ],
+          [
+            8,
+            1368
+          ]
+        ]
+      },
+      "name": "glasses_mobilenetv2"
+    },
+    {
+      "accuracy": 0.9922985781990521,
+      "precision": 0.9884225759768451,
+      "recall": 0.9927325581395349,
+      "f1": 0.9905728788977519,
+      "tp": 1366,
+      "tn": 1984,
+      "fp": 16,
+      "fn": 10,
+      "threshold": 0.5,
+      "loss": 0.025231964657133774,
+      "fps": 103.51579310344135,
+      "samples": 3376,
+      "split": "test",
+      "checkpoint": "models\\glasses_efficientnetb0_kaixiang_final_best.pth",
+      "model_name": "efficientnetb0",
+      "confusion_matrix": {
+        "rows": [
+          "true_without_glasses",
+          "true_with_glasses"
+        ],
+        "cols": [
+          "pred_without_glasses",
+          "pred_with_glasses"
+        ],
+        "values": [
+          [
+            1984,
+            16
+          ],
+          [
+            10,
+            1366
+          ]
+        ]
+      },
+      "name": "glasses_efficientnetb0"
+    }
+  ]
+}

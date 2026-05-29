@@ -3,3 +3,5 @@ deepface
 ultralytics
 numpy
 pillow
+torch
+torchvision
