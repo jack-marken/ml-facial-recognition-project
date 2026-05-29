@@ -17,3 +17,5 @@ yolo26n.pt
 
 # Local model/dependency caches
 models/torch_cache/
+
+.idea/
