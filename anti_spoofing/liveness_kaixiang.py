@@ -1,4 +1,5 @@
 from pathlib import Path
+from collections import deque
 
 import cv2
 import numpy as np
@@ -10,6 +11,48 @@ from anti_spoofing.liveness_training_kaixiang import IMAGENET_MEAN, IMAGENET_STD
 
 
 DEFAULT_CHECKPOINT = Path("models/liveness_mobilenetv2_kaixiang_best.pth")
+
+
+class LivenessTemporalSmootherKaixiang:
+    """Stabilize liveness labels across recent webcam frames."""
+
+    def __init__(self, window_size=5, spoof_votes=3):
+        if window_size <= 0:
+            raise ValueError("window_size must be positive")
+        if spoof_votes <= 0 or spoof_votes > window_size:
+            raise ValueError("spoof_votes must be between 1 and window_size")
+
+        self.window_size = window_size
+        self.spoof_votes = spoof_votes
+        self.labels = deque(maxlen=window_size)
+
+    def reset(self):
+        self.labels.clear()
+
+    def update(self, result):
+        if "liveness" not in result:
+            self.reset()
+            return result
+
+        raw_liveness = result["liveness"]
+        self.labels.append(raw_liveness)
+
+        spoof_count = sum(label == "SPOOF" for label in self.labels)
+        real_count = sum(label == "REAL" for label in self.labels)
+
+        smoothed = dict(result)
+        if len(self.labels) < self.spoof_votes:
+            smoothed["liveness"] = "CHECKING"
+        elif spoof_count >= self.spoof_votes:
+            smoothed["liveness"] = "SPOOF"
+        else:
+            smoothed["liveness"] = "REAL"
+
+        smoothed["raw_liveness"] = raw_liveness
+        smoothed["smooth_window"] = len(self.labels)
+        smoothed["smooth_real_votes"] = real_count
+        smoothed["smooth_spoof_votes"] = spoof_count
+        return smoothed
 
 
 class LivenessPredictorKaixiang:

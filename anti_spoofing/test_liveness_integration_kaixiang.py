@@ -3,7 +3,10 @@ from pathlib import Path
 
 import cv2
 
-from anti_spoofing.liveness_kaixiang import LivenessPredictorKaixiang
+from anti_spoofing.liveness_kaixiang import (
+    LivenessPredictorKaixiang,
+    LivenessTemporalSmootherKaixiang,
+)
 from detection.detector import detect_and_crop_face
 
 
@@ -42,7 +45,7 @@ def main():
     parser.add_argument(
         "--threshold",
         type=float,
-        default=0.828,
+        default=0.81,
         help="Minimum REAL probability required to output REAL.",
     )
     parser.add_argument("--camera", type=int, default=0)
@@ -55,9 +58,25 @@ def main():
             "Example: 0.3 keeps more spoof context around the face."
         ),
     )
+    parser.add_argument(
+        "--smooth-window",
+        type=int,
+        default=5,
+        help="Number of recent frames used for liveness temporal smoothing.",
+    )
+    parser.add_argument(
+        "--spoof-votes",
+        type=int,
+        default=3,
+        help="Minimum SPOOF votes in the smoothing window required to display SPOOF.",
+    )
     args = parser.parse_args()
 
     predictor = LivenessPredictorKaixiang(args.checkpoint, threshold=args.threshold)
+    smoother = LivenessTemporalSmootherKaixiang(
+        window_size=args.smooth_window,
+        spoof_votes=args.spoof_votes,
+    )
     webcam = cv2.VideoCapture(args.camera)
 
     if not webcam.isOpened():
@@ -71,6 +90,7 @@ def main():
 
         detection_result = detect_and_crop_face(frame)
         if "status" in detection_result:
+            smoother.reset()
             cv2.putText(
                 frame,
                 detection_result["status"],
@@ -94,10 +114,20 @@ def main():
                     face_image = expanded_face
                     display_bbox = expanded_bbox
 
-            result = predictor.predict(face_image)
+            raw_result = predictor.predict(face_image)
+            result = smoother.update(raw_result)
             x1, y1, x2, y2 = display_bbox
-            label = f"{result['liveness']} {result['confidence']:.2f}"
-            color = (0, 255, 0) if result["liveness"] == "REAL" else (0, 0, 255)
+            label = (
+                f"{result['liveness']} {result['confidence']:.2f} "
+                f"(raw {result['raw_liveness']}, "
+                f"S:{result['smooth_spoof_votes']}/R:{result['smooth_real_votes']})"
+            )
+            if result["liveness"] == "REAL":
+                color = (0, 255, 0)
+            elif result["liveness"] == "SPOOF":
+                color = (0, 0, 255)
+            else:
+                color = (0, 255, 255)
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             cv2.putText(
                 frame,
