@@ -9,9 +9,6 @@ from pathlib import Path
 from detection.detector import detect_and_crop_face
 from face_verification.metric_learning.recognition_kaixiang import predict_identity
 from face_verification.metric_learning.build_gallery_kaixiang import main as build_identity_gallery
-
-
-# from anti_spoofing.liveness_zhongyu import predict_liveness
 from anti_spoofing.liveness_kaixiang import predict_liveness
 
 # Authors: Jack (105417647), Patrick (100599029)
@@ -122,10 +119,6 @@ class UserInterface:
                 label = ""
                 color = (150, 150, 150)
                 if liveness_result["liveness"] == "REAL":
-                    # classification_result = predict_identity_metric(detection_results["face_image"])
-
-                    # classification_result = predict_identity(detection_results["face_image"])
-                    # print(predict_identity(detection_results["face_image"]))
                     classification_result = predict_identity(
                         detection_results["face_image"],
                         gallery_path="models/recognition_gallery_kaixiang.pkl",
