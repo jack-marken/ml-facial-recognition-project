@@ -1,0 +1,7 @@
+module,owner,model,path,sample_count,pair_count,positive_pair_count,negative_pair_count,seconds,best_threshold,accuracy,balanced_accuracy,precision,recall,f1,auc,tpr,fpr,tp,tn,fp,fn
+recognition,Zhongyu,Triplet EfficientNet-B0,models\recognition_triplet_efficientnet_zhongyu.pth,99,4851,122,4729,1.3371,0.568232,0.975057,0.520069,0.555556,0.040984,0.076336,0.779491,0.040984,0.000846,5,4725,4,117
+recognition,Zhongyu,Triplet ResNet34,models\recognition_triplet_resnet34_zhongyu.pth,99,4851,122,4729,1.0749,0.946444,0.975263,0.512189,0.75,0.02459,0.047619,0.879965,0.02459,0.000211,3,4728,1,119
+recognition,Kaixiang,Siamese MobileNetV2,models\recognition_siamese_mobilenetv2_kaixiang_final1_best.pth,99,4851,122,4729,0.9351,-0.039831,0.974644,0.503887,0.333333,0.008197,0.016,0.828879,0.008197,0.000423,1,4727,2,121
+recognition,Kaixiang,Siamese ResNet18,models\recognition_siamese_resnet18_kaixiang_final2_best.pth,99,4851,122,4729,0.6616,-0.014684,0.975263,0.512189,0.75,0.02459,0.047619,0.852248,0.02459,0.000211,3,4728,1,119
+recognition,Kaixiang,Triplet MobileNetV2,models\recognition_triplet_mobilenetv2_kaixiang_final30_best.pth,99,4851,122,4729,0.8614,-0.003255,0.975469,0.512295,1.0,0.02459,0.048,0.839054,0.02459,0.0,3,4729,0,119
+recognition,Kaixiang,Triplet ResNet18,models\recognition_triplet_resnet18_kaixiang_final30b_best.pth,99,4851,122,4729,0.6374,-0.002841,0.975881,0.560418,0.6,0.122951,0.204082,0.908753,0.122951,0.002115,15,4719,10,107
