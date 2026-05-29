@@ -7,8 +7,10 @@ from pathlib import Path
 
 # APIs from the local project files
 from detection.detector import detect_and_crop_face
-from face_verification.metric_learning.recognition_zhongyu import predict_identity_metric
-from face_verification.metric_learning.build_gallery_zhongyu import main as build_identity_gallery
+from face_verification.metric_learning.recognition_kaixiang import predict_identity
+from face_verification.metric_learning.build_gallery_kaixiang import main as build_identity_gallery
+
+
 # from anti_spoofing.liveness_zhongyu import predict_liveness
 from anti_spoofing.liveness_kaixiang import predict_liveness
 
@@ -87,9 +89,7 @@ class UserInterface:
         root.mainloop()
 
     def video_capture(self):
-        """Live video capture with face detection
-        TODO: Implement face recognition 
-        """
+        """Live video capture with face detection"""
         # Load the custom trained YOLO model from the models folder.
         custom_face_detection_model = YOLO("models/detection_yolo.pt")
 
@@ -122,12 +122,23 @@ class UserInterface:
                 label = ""
                 color = (150, 150, 150)
                 if liveness_result["liveness"] == "REAL":
-                    classification_result = predict_identity_metric(detection_results["face_image"])
+                    # classification_result = predict_identity_metric(detection_results["face_image"])
+
+                    # classification_result = predict_identity(detection_results["face_image"])
+                    # print(predict_identity(detection_results["face_image"]))
+                    classification_result = predict_identity(
+                        detection_results["face_image"],
+                        gallery_path="models/recognition_gallery_kaixiang.pkl",
+                        model_path="models/recognition_triplet_resnet18_kaixiang_final30b_best.pth",
+                        distance_threshold=0.006,
+                        distance_margin=0.0003,
+                        matching_mode="mean",
+                        )
                     color = (0, 255, 0)
                     if classification_result["similarity_score"] < 0.88:
                         label = "[unknown]"
                     else:
-                        label = f"{classification_result['identity']} {classification_result['similarity_score']}" 
+                        label = f"{classification_result['best_identity']} {classification_result['similarity_score']}" 
                 cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(
                     current_video_frame,
