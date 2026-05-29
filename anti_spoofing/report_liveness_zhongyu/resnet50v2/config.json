@@ -6,9 +6,10 @@
     224,
     3
   ],
-  "optimizer": "Adam",
-  "learning_rate": 0.0001,
-  "batch_size": 16,
+  "optimizer": "AdamW",
+  "learning_rate": 0.001,
+  "weight_decay": 0.0001,
+  "batch_size": 8,
   "epochs": 20,
   "loss_function": "binary_crossentropy",
   "metrics": [
@@ -31,7 +32,8 @@
       "spoof": 200
     }
   },
-  "data_augmentation": "none",
+  "data_augmentation": "random_flip, random_zoom, random_rotation, random_contrast, random_brightness",
+  "early_stopping_patience": 5,
   "train_base": false,
   "model_output": "models\\liveness_resnet50v2_zhongyu.weights.h5"
 }

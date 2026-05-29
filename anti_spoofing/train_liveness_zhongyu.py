@@ -46,9 +46,16 @@ def parse_args(
         help="Dataset root containing train/val/test folders.",
     )
     parser.add_argument("--epochs", type=int, default=20)
-    parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--train-base", action="store_true")
+    parser.add_argument(
+        "--disable-augmentation",
+        action="store_true",
+        help="Disable Kaixiang-style training augmentation.",
+    )
+    parser.add_argument("--early-stopping-patience", type=int, default=5)
     parser.add_argument(
         "--output",
         default=default_output,
@@ -124,6 +131,22 @@ def main(
     )
 
     autotune = tf.data.AUTOTUNE
+    if not args.disable_augmentation:
+        augmentation = tf.keras.Sequential(
+            [
+                tf.keras.layers.RandomFlip("horizontal"),
+                tf.keras.layers.RandomZoom(height_factor=(-0.12, 0.0), width_factor=(-0.12, 0.0)),
+                tf.keras.layers.RandomRotation(0.045),
+                tf.keras.layers.RandomContrast(0.2),
+                tf.keras.layers.RandomBrightness(0.2),
+            ],
+            name="kaixiang_style_liveness_augmentation",
+        )
+        train_dataset = train_dataset.map(
+            lambda images, labels: (augmentation(images, training=True), labels),
+            num_parallel_calls=autotune,
+        )
+
     train_dataset = train_dataset.prefetch(autotune)
     val_dataset = val_dataset.prefetch(autotune)
     test_dataset = test_dataset.prefetch(autotune)
@@ -132,8 +155,16 @@ def main(
         architecture=args.architecture,
         train_base=args.train_base,
     )
+    try:
+        optimizer = tf.keras.optimizers.AdamW(
+            learning_rate=args.learning_rate,
+            weight_decay=args.weight_decay,
+        )
+    except AttributeError:
+        optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate)
+
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=args.learning_rate),
+        optimizer=optimizer,
         loss="binary_crossentropy",
         metrics=[
             "accuracy",
@@ -156,7 +187,7 @@ def main(
         ),
         tf.keras.callbacks.EarlyStopping(
             monitor="val_loss",
-            patience=5,
+            patience=args.early_stopping_patience,
             restore_best_weights=True,
         ),
     ]

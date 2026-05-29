@@ -2,8 +2,8 @@ metric,value
 pair_count,4851
 positive_pair_count,122
 negative_pair_count,4729
-verification_accuracy,0.975469
-best_threshold,0.918091
-auc,0.872515
-tpr_at_best_threshold,0.090164
-fpr_at_best_threshold,0.001692
+verification_accuracy,0.975263
+best_threshold,0.946452
+auc,0.87993
+tpr_at_best_threshold,0.02459
+fpr_at_best_threshold,0.000211

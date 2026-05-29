@@ -37,8 +37,9 @@ def save_recognition_report(
         "backbone_model": architecture,
         "embedding_size": embedding_size,
         "input_image_size": [224, 224, 3],
-        "optimizer": "Adam",
+        "optimizer": "AdamW",
         "learning_rate": args.learning_rate,
+        "weight_decay": getattr(args, "weight_decay", None),
         "batch_size": args.batch_size,
         "epochs": args.epochs,
         "loss_function": "TripletMarginLoss",
@@ -49,6 +50,11 @@ def save_recognition_report(
         "validation_sample_count": _count_images(Path(args.val_dir)),
         "test_sample_count": _count_images(Path(args.test_dir)),
         "train_backbone": bool(args.train_backbone),
+        "data_augmentation": (
+            "random_flip, random_crop, random_rotation, brightness_contrast_jitter"
+            if not getattr(args, "disable_augmentation", False)
+            else "none"
+        ),
         "model_output": str(output_path),
     }
     _write_json(report_dir / "config.json", config)

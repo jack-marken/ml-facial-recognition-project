@@ -35,15 +35,21 @@ def save_liveness_report(
         "model_name": f"liveness_{architecture}",
         "architecture": architecture,
         "input_image_size": [224, 224, 3],
-        "optimizer": "Adam",
+        "optimizer": "AdamW",
         "learning_rate": args.learning_rate,
+        "weight_decay": getattr(args, "weight_decay", None),
         "batch_size": args.batch_size,
         "epochs": args.epochs,
         "loss_function": "binary_crossentropy",
         "metrics": ["accuracy", "precision", "recall"],
         "dataset_name": str(data_dir),
         "sample_counts": sample_counts,
-        "data_augmentation": "none",
+        "data_augmentation": (
+            "random_flip, random_zoom, random_rotation, random_contrast, random_brightness"
+            if not getattr(args, "disable_augmentation", False)
+            else "none"
+        ),
+        "early_stopping_patience": getattr(args, "early_stopping_patience", None),
         "train_base": bool(args.train_base),
         "model_output": str(output_path),
     }
