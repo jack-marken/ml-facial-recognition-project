@@ -7,6 +7,7 @@ import numpy as np
 
 from face_verification.metric_learning.recognition_kaixiang import (
     DEFAULT_GALLERY_PATH,
+    DEFAULT_MODEL_PATH,
     generate_embedding,
 )
 from face_verification.metric_learning.siamese_models_kaixiang import (
@@ -18,11 +19,12 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
 def main():
+    print("Saving gallery...")
     parser = argparse.ArgumentParser(
         description="Build Kaixiang Siamese recognition gallery from face folders."
     )
     parser.add_argument("--db-path", default="datasets/faces_db")
-    parser.add_argument("--checkpoint", required=True, type=Path)
+    parser.add_argument("--checkpoint", default=str(DEFAULT_MODEL_PATH), type=Path)
     parser.add_argument("--output", default=str(DEFAULT_GALLERY_PATH))
     parser.add_argument("--skip-detection", action="store_true")
     args = parser.parse_args()
