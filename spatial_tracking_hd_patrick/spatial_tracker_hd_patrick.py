@@ -92,11 +92,11 @@ class SpatialAttendanceTracker:
         # Calculate the exact time spent since the camera last saw the person.
         time_difference_since_last_frame = current_system_time - active_record["last_seen_timestamp"]
         
-        # Only add the time if the box disappeared for less than 3 seconds.
-        if time_difference_since_last_frame < 3.0:
+        # Only add the time if the box disappeared for less than 1.5 seconds.
+        if time_difference_since_last_frame < 1.5:
             active_record["zone_dwell_times_seconds"][active_record["current_zone"]] += time_difference_since_last_frame
         else:
-            # If they were gone for more than 3 seconds, inject a 'None' to break the heatmap line.
+            # If they were gone for more than 1.5 seconds, inject a 'None' to break the heatmap line.
             active_record["movement_path_coordinates"].append(None)
             
         # Update the last seen timestamp to the current time.
@@ -122,61 +122,100 @@ class SpatialAttendanceTracker:
         # Create a timestamp for the folder and files so nothing is ever overwritten.
         session_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         
-        # UPDATED: Create a dedicated folder for this specific tracking session inside the spatial_tracking directory.
+        # Create a dedicated folder for this specific tracking session inside the spatial_tracking directory.
         session_folder_path = f"reports/spatial_tracking/session_{session_timestamp}"
         os.makedirs(session_folder_path, exist_ok=True)
         
         csv_filename = f"{session_folder_path}/attendance_log.csv"
         
-        # 1. GENERATE THE CSV ATTENDANCE LOG
+        # Generate the CSV Attendance Log
         with open(csv_filename, mode='w', newline='') as csv_file:
             csv_writer = csv.writer(csv_file)
-            csv_writer.writerow(["Name", "Arrival Time", "Final Zone", "Total Zone Changes", "Most Used Zone"])
+            csv_writer.writerow(["Name", "Arrival Time", "Final Zone", "Total Zone Changes", "Most Used Zone", "Total Seconds Tracked"])
+
+            # Extract the dictionary items and sort them alphabetically by the identity_name key.
+            sorted_tracking_data = sorted(self.session_tracking_database.items())
             
-            for name, data in self.session_tracking_database.items():
-                # Automatically calculate which zone they spent the highest amount of seconds in.
+            for name, data in sorted_tracking_data:
                 most_used_zone = max(data["zone_dwell_times_seconds"], key=data["zone_dwell_times_seconds"].get)
+                total_time = sum(data["zone_dwell_times_seconds"].values())
                 
                 csv_writer.writerow([
                     name,
                     data["arrival_time_formatted"],
                     data["current_zone"],
                     data["total_zone_changes"],
-                    most_used_zone
+                    most_used_zone,
+                    round(total_time, 2)
                 ])
         print(f"CSV Report successfully saved to {csv_filename}")
 
-        # 2. GENERATE THE HEATMAP VISUALIZATIONS
+        # Generate the Colour-Coded Heatmap Visualisations
         for name, data in self.session_tracking_database.items():
             image_filename = f"{session_folder_path}/heatmap_{name}.png"
             
-            # Create a blank white image canvas based on the exact camera resolution.
+            # Create a blank white image canvas.
             blank_image = np.ones((self.camera_frame_height, self.camera_frame_width, 3), dtype=np.uint8) * 255
             
-            # Draw the 3x3 grid lines in light grey.
-            cv2.line(blank_image, (int(self.camera_frame_width/3), 0), (int(self.camera_frame_width/3), self.camera_frame_height), (200, 200, 200), 2)
-            cv2.line(blank_image, (int(self.camera_frame_width/3 * 2), 0), (int(self.camera_frame_width/3 * 2), self.camera_frame_height), (200, 200, 200), 2)
-            cv2.line(blank_image, (0, int(self.camera_frame_height/3)), (self.camera_frame_width, int(self.camera_frame_height/3)), (200, 200, 200), 2)
-            cv2.line(blank_image, (0, int(self.camera_frame_height/3 * 2)), (self.camera_frame_width, int(self.camera_frame_height/3 * 2)), (200, 200, 200), 2)
+            # Define the exact pixel boundaries for the 9 zones to draw the color shading
+            w_third = int(self.camera_frame_width / 3)
+            h_third = int(self.camera_frame_height / 3)
             
-            # Draw the movement path trace.
+            zones_mapping = {
+                "TOP_LEFT": ((0, 0), (w_third, h_third)),
+                "TOP_CENTER": ((w_third, 0), (w_third * 2, h_third)),
+                "TOP_RIGHT": ((w_third * 2, 0), (self.camera_frame_width, h_third)),
+                "MIDDLE_LEFT": ((0, h_third), (w_third, h_third * 2)),
+                "MIDDLE_CENTER": ((w_third, h_third), (w_third * 2, h_third * 2)),
+                "MIDDLE_RIGHT": ((w_third * 2, h_third), (self.camera_frame_width, h_third * 2)),
+                "BOTTOM_LEFT": ((0, h_third * 2), (w_third, self.camera_frame_height)),
+                "BOTTOM_CENTER": ((w_third, h_third * 2), (w_third * 2, self.camera_frame_height)),
+                "BOTTOM_RIGHT": ((w_third * 2, h_third * 2), (self.camera_frame_width, self.camera_frame_height))
+            }
+            
+            # Find the maximum time spent in a single zone to calculate the color scale.
+            max_time = max(data["zone_dwell_times_seconds"].values())
+            if max_time == 0:
+                max_time = 1  # Set maximum time to 1 to prevent division by zero for new arrivals.
+                
+            # Shade the zones and print the time text
+            for zone_name, (pt1, pt2) in zones_mapping.items():
+                time_spent = data["zone_dwell_times_seconds"][zone_name]
+                
+                if time_spent > 0:
+                    # Calculate color intensity (0 to 100). Higher time = deeper blue.
+                    intensity = int((time_spent / max_time) * 100)
+                    
+                    # BGR Color Format coresponds to Blue, Green, Red. The blue channel remains constant while green and red are reduced to create a blue shade.
+                    box_color = (255, 255 - intensity, 255 - intensity)
+                    
+                    # Fill the rectangle with the calculated color
+                    cv2.rectangle(blank_image, pt1, pt2, box_color, -1)
+                    
+                    # Stamp the text in the top-left corner of each zone
+                    text_x = pt1[0] + 10
+                    text_y = pt1[1] + 30
+                    cv2.putText(blank_image, f"{time_spent:.1f}s", (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+
+            # Draw the 3x3 grid lines in dark grey over the shading.
+            cv2.line(blank_image, (w_third, 0), (w_third, self.camera_frame_height), (150, 150, 150), 2)
+            cv2.line(blank_image, (w_third * 2, 0), (w_third * 2, self.camera_frame_height), (150, 150, 150), 2)
+            cv2.line(blank_image, (0, h_third), (self.camera_frame_width, h_third), (150, 150, 150), 2)
+            cv2.line(blank_image, (0, h_third * 2), (self.camera_frame_width, h_third * 2), (150, 150, 150), 2)
+            
+            # Draw the movement path trace (The Red lines and Blue Dots).
             coordinates_list = data["movement_path_coordinates"]
             for index in range(1, len(coordinates_list)):
                 previous_point = coordinates_list[index-1]
                 current_point = coordinates_list[index]
                 
-                # THE LASER BEAM FIX: If either point is None, someone left the camera view.
-                # We skip drawing the connecting line to break the path.
                 if previous_point is None or current_point is None:
-                    # We still draw the dot if the current point is valid when they return.
                     if current_point is not None:
-                        cv2.circle(blank_image, current_point, 4, (255, 0, 0), -1)
+                        cv2.circle(blank_image, current_point, 5, (255, 0, 0), -1)
                     continue
                 
-                # If both points are valid, draw a red line connecting them.
                 cv2.line(blank_image, previous_point, current_point, (0, 0, 255), 2)
-                # Draw a blue dot at the exact coordinate.
-                cv2.circle(blank_image, current_point, 4, (255, 0, 0), -1)
+                cv2.circle(blank_image, current_point, 5, (255, 0, 0), -1)
             
             # Save the final drawn image to the session folder.
             cv2.imwrite(image_filename, blank_image)
