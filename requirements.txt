@@ -3,6 +3,7 @@ matplotlib
 numpy
 opencv-python
 pillow
+scikit-learn
 torch
 torchvision
 tensorflow
