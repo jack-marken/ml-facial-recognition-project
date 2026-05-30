@@ -11,6 +11,10 @@ from face_verification.metric_learning.recognition_kaixiang import predict_ident
 from face_verification.metric_learning.build_gallery_kaixiang import main as build_identity_gallery
 from anti_spoofing.liveness_kaixiang import predict_liveness
 
+# ==============================================================================================
+# --- SUPERVISED CLASSIFICATION MODEL INTEGRATION (PATRICK LUNNEY) ---
+import os
+from face_verification.classification_model.face_comparator_patrick import PatrickFaceVerifier
 # ==============================================================================
 # --- HD SPATIAL TRACKING (PATRICK LUNNEY) ---
 from spatial_tracking_hd_patrick.spatial_tracker_hd_patrick import SpatialAttendanceTracker
@@ -115,6 +119,40 @@ class UserInterface:
         )
         # ==============================================================================
 
+        # ==============================================================================
+        # --- SUPERVISED CLASSIFICATION MODEL INTEGRATION (PATRICK LUNNEY) ---
+        print("Initialising the custom MobileNetV2 classification verifier.")
+        classification_verifier = PatrickFaceVerifier(trained_model_weights_path="models/verification_classification_patrick.pt")
+
+        print("Building the custom embedding gallery in system memory.")
+        custom_identity_gallery = {}
+        dataset_directory_path = "datasets/faces_db"
+
+        # Check if the dataset directory exists before attempting to load images.
+        if os.path.exists(dataset_directory_path):
+            # Iterate through each folder within the dataset directory.
+            for identity_folder_name in os.listdir(dataset_directory_path):
+                specific_folder_path = os.path.join(dataset_directory_path, identity_folder_name)
+                
+                # Verify the path is a directory.
+                if os.path.isdir(specific_folder_path):
+                    # Construct the path to the first image file.
+                    first_image_file_path = os.path.join(specific_folder_path, "0.jpg")
+                    
+                    # Verify the image file exists.
+                    if os.path.exists(first_image_file_path):
+                        # Load the image using OpenCV to match the live webcam format.
+                        database_image_array = cv2.imread(first_image_file_path)
+                        
+                        # Resize the image array to the required 224x224 dimensions.
+                        resized_database_image = cv2.resize(database_image_array, (224, 224))
+                        
+                        # Generate the 1024-feature embedding and store it in the dictionary.
+                        custom_identity_gallery[identity_folder_name] = classification_verifier.generate_face_embedding(resized_database_image)
+
+        print(f"Custom gallery built successfully. Total loaded identities: {len(custom_identity_gallery)}")
+        # ==============================================================================
+
         print("Webcam initialised. Press 'q' in the video window to quit.")
 
         print("Webcam initialised. Press 'Enter' in the video window to register a new face.")
@@ -141,16 +179,50 @@ class UserInterface:
                 label = ""
                 color = (150, 150, 150)
                 if liveness_result["liveness"] == "REAL":
-                    classification_result = predict_identity(
-                        detection_results["face_image"],
-                        gallery_path="models/recognition_gallery_kaixiang.pkl",
-                        model_path="models/recognition_triplet_resnet18_kaixiang_final30b_best.pth",
-                        distance_threshold=0.006,
-                        distance_margin=0.0003,
-                        matching_mode="mean",
+                    # --- KAIXIANG'S ORIGINAL CODE (COMMENTED OUT) ---
+                    # classification_result = predict_identity(
+                    #     detection_results["face_image"],
+                    #     gallery_path="models/recognition_gallery_kaixiang.pkl",
+                    #     model_path="models/recognition_triplet_resnet18_kaixiang_final30b_best.pth",
+                    #     distance_threshold=0.006,
+                    #     distance_margin=0.0003,
+                    #     matching_mode="mean",
+                    #     )
+                    
+                    # ==============================================================================
+                    # --- SUPERVISED CLASSIFICATION MODEL INTEGRATION (PATRICK LUNNEY) ---
+                    # Extract the 1024-feature embedding from the live webcam face crop.
+                    live_webcam_embedding = classification_verifier.generate_face_embedding(detection_results["face_image"])
+                    
+                    # Initialise tracking variables to find the best match in the gallery.
+                    highest_similarity_score = 0.0
+                    best_matching_identity_name = "[unknown]"
+                    
+                    # Iterate through every identity in the loaded custom gallery.
+                    for stored_identity_name, stored_database_embedding in custom_identity_gallery.items():
+                        # Compare the live embedding against the stored embedding.
+                        comparison_output_dictionary = classification_verifier.compare_embeddings(
+                            live_webcam_embedding=live_webcam_embedding, 
+                            saved_database_embedding=stored_database_embedding
                         )
+                        
+                        # Extract the numerical similarity score.
+                        current_comparison_score = comparison_output_dictionary["similarity_score"]
+                        
+                        # Update the tracking variables if the current score is the highest found.
+                        if current_comparison_score > highest_similarity_score:
+                            highest_similarity_score = current_comparison_score
+                            best_matching_identity_name = stored_identity_name
+                    
+                    # Structure the output dictionary to match the expected format of the downstream user interface.
+                    classification_result = {
+                        "best_identity": best_matching_identity_name,
+                        "similarity_score": highest_similarity_score
+                    }
+                    # ==============================================================================
+
                     color = (0, 255, 0)
-                    if classification_result["similarity_score"] < 0.88:
+                    if classification_result["similarity_score"] < 0.70:
                         label = "[unknown]"
                     else:
                         label = f"{classification_result['best_identity']} {classification_result['similarity_score']}" 
