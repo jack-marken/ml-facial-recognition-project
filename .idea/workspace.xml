@@ -5,17 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9f51df81-e761-4445-87c3-b1b3d266ae81" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/face_verification/metric_learning/README_metric_kaixiang.md" beforeDir="false" afterPath="$PROJECT_DIR$/face_verification/metric_learning/README_metric_kaixiang.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/face_verification/metric_learning/build_gallery_kaixiang.py" beforeDir="false" afterPath="$PROJECT_DIR$/face_verification/metric_learning/build_gallery_kaixiang.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/face_verification/metric_learning/compare_metric_models_kaixiang.py" beforeDir="false" afterPath="$PROJECT_DIR$/face_verification/metric_learning/compare_metric_models_kaixiang.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/face_verification/metric_learning/recognition_kaixiang.py" beforeDir="false" afterPath="$PROJECT_DIR$/face_verification/metric_learning/recognition_kaixiang.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/face_verification/metric_learning/siamese_dataset_kaixiang.py" beforeDir="false" afterPath="$PROJECT_DIR$/face_verification/metric_learning/siamese_dataset_kaixiang.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/face_verification/metric_learning/siamese_models_kaixiang.py" beforeDir="false" afterPath="$PROJECT_DIR$/face_verification/metric_learning/siamese_models_kaixiang.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/face_verification/metric_learning/siamese_training_kaixiang.py" beforeDir="false" afterPath="$PROJECT_DIR$/face_verification/metric_learning/siamese_training_kaixiang.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/face_verification/metric_learning/test_recognition_integration_kaixiang.py" beforeDir="false" afterPath="$PROJECT_DIR$/face_verification/metric_learning/test_recognition_integration_kaixiang.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/face_verification/metric_learning/train_siamese_mobilenetv2_kaixiang.py" beforeDir="false" afterPath="$PROJECT_DIR$/face_verification/metric_learning/train_siamese_mobilenetv2_kaixiang.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/face_verification/metric_learning/train_siamese_resnet18_kaixiang.py" beforeDir="false" afterPath="$PROJECT_DIR$/face_verification/metric_learning/train_siamese_resnet18_kaixiang.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/metric_model_comparison_kaixiang.json" beforeDir="false" afterPath="$PROJECT_DIR$/reports/metric_model_comparison_kaixiang.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/recognition_gallery_kaixiang.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/models/recognition_gallery_kaixiang.pkl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/user_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/user_interface.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -44,18 +36,21 @@
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feature/metric-recognition-kaixiang&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feature/ui-kaixiang-integration-fixes&quot;,
     &quot;last_opened_file_path&quot;: &quot;E:/ml-facial-recognition-project&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-164cda30dcd9-0af03a5fa574-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.26830.99" />
+        <option value="bundled-js-predefined-d6986cc7102b-1632447f56bf-JavaScript-WS-243.26053.12" />
       </set>
     </attachedChunks>
   </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="默认任务">
       <changelist id="9f51df81-e761-4445-87c3-b1b3d266ae81" name="更改" comment="" />
@@ -63,6 +58,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1779792309640</updated>
+      <workItem from="1780136162002" duration="5000" />
     </task>
     <servers />
   </component>

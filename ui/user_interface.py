@@ -9,9 +9,38 @@ from pathlib import Path
 from detection.detector import detect_and_crop_face
 from face_verification.metric_learning.recognition_kaixiang import predict_identity
 from face_verification.metric_learning.build_gallery_kaixiang import main as build_identity_gallery
-from anti_spoofing.liveness_kaixiang import predict_liveness
+from anti_spoofing.liveness_kaixiang import LivenessTemporalSmootherKaixiang, predict_liveness
 
 # Authors: Jack (105417647), Patrick (100599029)
+
+LIVENESS_MODEL_PATH = "models/liveness_efficientnetb0_kaixiang_final1_best.pth"
+LIVENESS_THRESHOLD = 0.81
+LIVENESS_EXPAND_RATIO = 0.327
+LIVENESS_SMOOTH_WINDOW = 5
+LIVENESS_SPOOF_VOTES = 3
+
+
+def crop_expanded_face(frame, bbox, expand_ratio):
+    x1, y1, x2, y2 = bbox
+    frame_height, frame_width = frame.shape[:2]
+    box_width = x2 - x1
+    box_height = y2 - y1
+
+    pad_x = int(box_width * expand_ratio)
+    pad_y = int(box_height * expand_ratio)
+
+    expanded_x1 = max(0, x1 - pad_x)
+    expanded_y1 = max(0, y1 - pad_y)
+    expanded_x2 = min(frame_width, x2 + pad_x)
+    expanded_y2 = min(frame_height, y2 + pad_y)
+
+    expanded_crop = frame[expanded_y1:expanded_y2, expanded_x1:expanded_x2]
+    if expanded_crop.size == 0:
+        return None
+
+    rgb_face = cv2.cvtColor(expanded_crop, cv2.COLOR_BGR2RGB)
+    return cv2.resize(rgb_face, (224, 224))
+
 
 class UserInterface:
     """Main user interface for the face recognition attendance system
@@ -96,6 +125,10 @@ class UserInterface:
         print("Webcam initialised. Press 'q' in the video window to quit.")
 
         print("Webcam initialised. Press 'Enter' in the video window to register a new face.")
+        liveness_smoother = LivenessTemporalSmootherKaixiang(
+            window_size=LIVENESS_SMOOTH_WINDOW,
+            spoof_votes=LIVENESS_SPOOF_VOTES,
+        )
 
         # Begin an infinite loop to process the webcam feed frame by frame.
         while live_webcam_feed.isOpened():
@@ -113,9 +146,21 @@ class UserInterface:
             # Draw bounding box
             if "face_image" in detection_results:
                 x1, y1, x2, y2 = detection_results["bbox"]
+                liveness_face_image = crop_expanded_face(
+                    current_video_frame,
+                    detection_results["bbox"],
+                    LIVENESS_EXPAND_RATIO,
+                )
+                if liveness_face_image is None:
+                    liveness_face_image = detection_results["face_image"]
                 
                 # If the anti-spoofing module determines that the face is not real, the bounding box will show grey
-                liveness_result = predict_liveness(detection_results["face_image"], checkpoint_path="models/liveness_efficientnetb0_kaixiang_final1_best.pth", threshold=0.81)
+                raw_liveness_result = predict_liveness(
+                    liveness_face_image,
+                    checkpoint_path=LIVENESS_MODEL_PATH,
+                    threshold=LIVENESS_THRESHOLD,
+                )
+                liveness_result = liveness_smoother.update(raw_liveness_result)
                 label = ""
                 color = (150, 150, 150)
                 if liveness_result["liveness"] == "REAL":
@@ -132,6 +177,11 @@ class UserInterface:
                         label = "[unknown]"
                     else:
                         label = f"{classification_result['best_identity']} {classification_result['similarity_score']}" 
+                elif liveness_result["liveness"] == "SPOOF":
+                    label = "SPOOF"
+                else:
+                    label = "CHECKING"
+                    color = (0, 255, 255)
                 cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(
                     current_video_frame,
@@ -142,6 +192,8 @@ class UserInterface:
                     color,
                     2,
                 )
+            else:
+                liveness_smoother.reset()
 
             # Display a new image frame in a new desktop window that includes the drawn bounding boxes and labels.
             cv2.imshow("Face Detection Live Test", current_video_frame)
