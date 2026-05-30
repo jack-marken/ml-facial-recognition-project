@@ -1,8 +1,13 @@
+datasets
 deepface
+matplotlib
 numpy
 opencv-python
+pandas
 pillow
+scikit-learn
+seaborn
+tensorflow
 torch
 torchvision
-tensorflow
 ultralytics
