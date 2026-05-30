@@ -1,3 +1,4 @@
+import cv2
 from ultralytics import YOLO
 # Author: Patrick (100599029)
 
@@ -39,3 +40,41 @@ def detect_faces(frame):
         "bbox": [x1, y1, x2, y2],
         "confidence": final_confidence
     }
+
+def detect_and_crop_face(frame):
+    # Call the base detection function to get the coordinates and confidence.
+    detection_result = detect_faces(frame)
+    
+    # Check if the base function returned a NO_FACE error and return it immediately.
+    if "status" in detection_result and detection_result["status"] == "NO_FACE":
+        return detection_result
+        
+    # Extract the coordinates from the returned dictionary.
+    bounding_box = detection_result["bbox"]
+    x1 = bounding_box[0]
+    y1 = bounding_box[1]
+    x2 = bounding_box[2]
+    y2 = bounding_box[3]
+    
+    # Crop the face from the original frame using numpy array slicing.
+    cropped_face = frame[y1:y2, x1:x2]
+    
+    # Verify the crop was successful and the array is not empty.
+    if cropped_face.size == 0:
+         return {
+            "status": "CROP_FAILED",
+            "message": "Face detected, but cropping failed due to boundary issues."
+        }
+        
+    # Convert the color format from BGR to RGB.
+    rgb_face = cv2.cvtColor(cropped_face, cv2.COLOR_BGR2RGB)
+    detection_result["raw_face_image"] = rgb_face
+    
+    # Resize the cropped image to the unified standard of 224x224 pixels.
+    standardized_face = cv2.resize(rgb_face, (224, 224))
+    
+    # Add the preprocessed face image to the existing dictionary.
+    detection_result["face_image"] = standardized_face
+    
+    # Return the updated dictionary containing coordinates, confidence, and the image.
+    return detection_result
