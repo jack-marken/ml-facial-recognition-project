@@ -1,0 +1,5 @@
+accuracy,balanced_accuracy,best_threshold,checkpoint,f1,fn,fp,fps,framework,name,owner,precision,recall,roc_auc,samples,tn,tp
+0.875,0.875,0.18203027546405792,models\liveness_mobilenetv2_kaixiang_final1_best.pth,0.8756218905472637,12,13,37.61747396344509,torch,kaixiang_mobilenetv2,Kaixiang,0.8712871287128713,0.88,0.9447,200,87,88
+0.915,0.915,0.6513064503669739,models\liveness_efficientnetb0_kaixiang_final1_best.pth,0.9128205128205128,11,6,30.91752310148714,torch,kaixiang_efficientnetb0,Kaixiang,0.9368421052631579,0.89,0.9724,200,94,89
+0.88,0.88,0.6182332038879395,models\liveness_densenet121_zhongyu.keras,0.8736842105263158,17,7,10.699973086356735,keras,zhongyu_densenet121,Zhongyu,0.9222222222222223,0.83,0.9053,200,93,83
+0.82,0.8200000000000001,0.6741141080856323,models\liveness_resnet50v2_zhongyu.weights.h5,0.8235294117647058,16,20,14.478631711414167,keras,zhongyu_resnet50v2,Zhongyu,0.8076923076923077,0.84,0.8813000000000001,200,80,84
