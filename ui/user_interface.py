@@ -7,6 +7,7 @@ from pathlib import Path
 
 # APIs from the local project files
 from detection.detector import detect_and_crop_face
+from emotion_detection.emotion_detector import EmotionDetector
 from face_verification.metric_learning.recognition_kaixiang import predict_identity
 from face_verification.metric_learning.build_gallery_kaixiang import main as build_identity_gallery
 from anti_spoofing.liveness_kaixiang import predict_liveness
@@ -20,6 +21,8 @@ class UserInterface:
         app = UserInterface()
         app.start()
     """
+    def __init__(self):
+        self.emotion_detector = EmotionDetector()
 
     def register_employee(self, cropped_img, standardized_img):
         """Tkinter pop-up window for registering a new employee
@@ -132,6 +135,11 @@ class UserInterface:
                         label = "[unknown]"
                     else:
                         label = f"{classification_result['best_identity']} {classification_result['similarity_score']}" 
+                    
+                    if self.emotion_detector.active == True:
+                        emotion_result = "Emotion: " + self.emotion_detector.detect_emotion(detection_results["raw_face_image"])
+                        cv2.putText(current_video_frame, emotion_result, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+
                 cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(
                     current_video_frame,
@@ -158,6 +166,8 @@ class UserInterface:
                         self.register_employee(detection_results["raw_face_image"], detection_results["face_image"])
                     else:
                         messagebox.showinfo("Anti-spoofing verification", "Face was not clear enough to be verified. Please ensure that your face is fully shown.")
+            elif keyboard_input & 0xFF == ord('e'):
+                self.emotion_detector.toggle_active()
 
         # Release the webcam hardware and close all created graphical windows.
         live_webcam_feed.release()
