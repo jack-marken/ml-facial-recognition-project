@@ -8,8 +8,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from anti_spoofing.liveness_zhongyu import DEFAULT_MODEL_PATH, DEFAULT_THRESHOLD
-from anti_spoofing.temporal_liveness_zhongyu import TemporalLivenessDetector
+from anti_spoofing.temporal_liveness_zhongyu import (
+    DEFAULT_TEMPORAL_MODEL_PATH,
+    DEFAULT_TEMPORAL_THRESHOLD,
+    TemporalLivenessDetector,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -18,13 +21,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        default=str(DEFAULT_MODEL_PATH),
+        default=str(DEFAULT_TEMPORAL_MODEL_PATH),
         help="Path to the trained liveness model.",
     )
     parser.add_argument(
         "--real-threshold",
         type=float,
-        default=DEFAULT_THRESHOLD,
+        default=DEFAULT_TEMPORAL_THRESHOLD,
         help="Temporal REAL probability threshold.",
     )
     parser.add_argument(
@@ -58,17 +61,6 @@ def parse_args() -> argparse.Namespace:
         help="Maximum allowed standard deviation in the temporal window.",
     )
     parser.add_argument(
-        "--min-motion-for-real",
-        type=float,
-        default=0.004,
-        help="Minimum average face-crop motion required before confirming REAL.",
-    )
-    parser.add_argument(
-        "--disable-motion-check",
-        action="store_true",
-        help="Disable the static-face motion guard.",
-    )
-    parser.add_argument(
         "--camera",
         type=int,
         default=0,
@@ -82,7 +74,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--process-every",
         type=int,
-        default=5,
+        default=8,
         help="Run detection and liveness inference every N frames.",
     )
     parser.add_argument(
@@ -102,6 +94,24 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.45,
         help="Reset temporal state when face-box area changes by this ratio.",
+    )
+    parser.add_argument(
+        "--min-face-height-ratio",
+        type=float,
+        default=0.25,
+        help=(
+            "Minimum face-box height relative to frame height before liveness can "
+            "confirm REAL. Smaller faces are treated as too far away."
+        ),
+    )
+    parser.add_argument(
+        "--min-face-width-ratio",
+        type=float,
+        default=0.16,
+        help=(
+            "Minimum face-box width relative to frame width before liveness can "
+            "confirm REAL. Smaller faces are treated as too far away."
+        ),
     )
     parser.add_argument(
         "--warmup",
@@ -126,8 +136,6 @@ def main() -> None:
         min_frames=args.min_frames,
         required_confirmations=args.confirmations,
         max_stable_std=args.max_stable_std,
-        min_motion_for_real=args.min_motion_for_real,
-        enable_motion_check=not args.disable_motion_check,
     )
     if args.warmup:
         temporal_detector.update(np.zeros((224, 224, 3), dtype=np.uint8))
@@ -158,6 +166,18 @@ def main() -> None:
             if "face_image" in detection_result:
                 face_image = detection_result["face_image"]
                 current_bbox = detection_result["bbox"]
+
+                if not _is_face_close_enough(
+                    bbox=current_bbox,
+                    frame_shape=frame.shape,
+                    min_height_ratio=args.min_face_height_ratio,
+                    min_width_ratio=args.min_face_width_ratio,
+                ):
+                    temporal_detector.reset()
+                    last_detection_result = detection_result
+                    last_processed_bbox = current_bbox
+                    last_temporal_result = _make_too_far_result(current_bbox, frame.shape)
+                    continue
 
                 if last_processed_bbox is not None and _is_new_face_track(
                     previous_bbox=last_processed_bbox,
@@ -217,13 +237,13 @@ def _draw_temporal_result(
     color = _label_color(label)
 
     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-    title_y = y1 - 56 if show_debug else y1 - 10
-    debug_y = y1 - 32
-    motion_y = y1 - 10
+    title_y = y1 - 62 if show_debug else y1 - 10
+    debug_y = y1 - 38
+    progress_y = y1 - 18
     if title_y < 20:
         title_y = y1 + 24
         debug_y = y1 + 46
-        motion_y = y1 + 68
+        progress_y = y1 + 58
 
     cv2.putText(
         frame,
@@ -240,28 +260,46 @@ def _draw_temporal_result(
             f"temp {float(temporal_result['temporal_probability']):.2f} | "
             f"std {float(temporal_result['temporal_std']):.2f}"
         )
-        motion_label = (
-            f"motion {float(temporal_result['motion_score']):.4f} | "
-            f"active {temporal_result['motion_enough']}"
-        )
         cv2.putText(
             frame,
             debug_label,
             (x1, max(20, debug_y)),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
+            0.55,
             color,
-            1,
+            2,
         )
-        cv2.putText(
-            frame,
-            motion_label,
-            (x1, max(20, motion_y)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            color,
-            1,
+        _draw_stability_blocks(
+            frame=frame,
+            x=x1,
+            y=max(20, progress_y),
+            temporal_result=temporal_result,
+            color=color,
         )
+
+
+def _draw_stability_blocks(
+    frame,
+    x: int,
+    y: int,
+    temporal_result: dict[str, float | int | str],
+    color: tuple[int, int, int],
+) -> None:
+    total_blocks = 5
+    block_width = 22
+    block_height = 8
+    block_gap = 5
+    min_frames = 5
+    stable_frames = int(temporal_result.get("stable_frames", 0))
+    filled_blocks = min(total_blocks, int(np.ceil(stable_frames / min_frames * total_blocks)))
+
+    for index in range(total_blocks):
+        left = x + index * (block_width + block_gap)
+        right = left + block_width
+        top = y
+        bottom = y + block_height
+        thickness = -1 if index < filled_blocks else 1
+        cv2.rectangle(frame, (left, top), (right, bottom), color, thickness)
 
 
 def _label_color(label: str) -> tuple[int, int, int]:
@@ -269,7 +307,44 @@ def _label_color(label: str) -> tuple[int, int, int]:
         return (0, 210, 0)
     if label == "SPOOF":
         return (0, 0, 255)
+    if label == "TOO_FAR":
+        return (0, 190, 255)
     return (0, 190, 255)
+
+
+def _make_too_far_result(bbox, frame_shape) -> dict[str, float | int | str]:
+    x1, y1, x2, y2 = bbox
+    frame_height, frame_width = frame_shape[:2]
+    face_height_ratio = (y2 - y1) / max(frame_height, 1)
+    face_width_ratio = (x2 - x1) / max(frame_width, 1)
+    return {
+        "liveness": "TOO_FAR",
+        "confidence": 0.0,
+        "raw_real_probability": 0.5,
+        "temporal_probability": 0.5,
+        "temporal_std": 0.0,
+        "stable_frames": 0,
+        "stable_enough": "NO",
+        "face_height_ratio": round(float(face_height_ratio), 4),
+        "face_width_ratio": round(float(face_width_ratio), 4),
+        "method": "temporal_liveness_distance_guard",
+    }
+
+
+def _is_face_close_enough(
+    bbox,
+    frame_shape,
+    min_height_ratio: float,
+    min_width_ratio: float,
+) -> bool:
+    x1, y1, x2, y2 = bbox
+    frame_height, frame_width = frame_shape[:2]
+    face_height_ratio = (y2 - y1) / max(frame_height, 1)
+    face_width_ratio = (x2 - x1) / max(frame_width, 1)
+    return (
+        face_height_ratio >= min_height_ratio
+        and face_width_ratio >= min_width_ratio
+    )
 
 
 def _is_new_face_track(

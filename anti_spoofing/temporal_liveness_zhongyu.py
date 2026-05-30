@@ -19,21 +19,36 @@ from anti_spoofing.liveness_zhongyu import (
     predict_liveness_probability,
 )
 
+KAIXIANG_EFFICIENTNETB0_MODEL_PATH = Path(
+    "models/liveness_efficientnetb0_kaixiang_final1_best.pth"
+)
+DEFAULT_TEMPORAL_MODEL_PATH = (
+    KAIXIANG_EFFICIENTNETB0_MODEL_PATH
+    if KAIXIANG_EFFICIENTNETB0_MODEL_PATH.exists()
+    else DEFAULT_MODEL_PATH
+)
+DEFAULT_TEMPORAL_THRESHOLD = (
+    0.5 if DEFAULT_TEMPORAL_MODEL_PATH.suffix.lower() == ".pth" else DEFAULT_THRESHOLD
+)
+
+_cached_torch_model = None
+_cached_torch_model_path: Path | None = None
+_cached_torch_transform = None
+_cached_torch_device = None
+
 
 class TemporalLivenessDetector:
     """Convert frame-level liveness probabilities into a stable temporal result."""
 
     def __init__(
         self,
-        model_path: str | Path = DEFAULT_MODEL_PATH,
-        real_threshold: float = DEFAULT_THRESHOLD,
+        model_path: str | Path = DEFAULT_TEMPORAL_MODEL_PATH,
+        real_threshold: float = DEFAULT_TEMPORAL_THRESHOLD,
         spoof_threshold: float | None = None,
         window_size: int = 15,
         min_frames: int = 5,
         required_confirmations: int = 3,
         max_stable_std: float = 0.18,
-        min_motion_for_real: float = 0.004,
-        enable_motion_check: bool = True,
     ) -> None:
         if window_size < 1:
             raise ValueError("window_size must be at least 1.")
@@ -53,12 +68,8 @@ class TemporalLivenessDetector:
         self.min_frames = int(min_frames)
         self.required_confirmations = int(required_confirmations)
         self.max_stable_std = float(max_stable_std)
-        self.min_motion_for_real = float(min_motion_for_real)
-        self.enable_motion_check = bool(enable_motion_check)
 
         self._probabilities: deque[float] = deque(maxlen=self.window_size)
-        self._motion_scores: deque[float] = deque(maxlen=self.window_size)
-        self._previous_gray_face: np.ndarray | None = None
         self._current_label = "UNCERTAIN"
         self._candidate_label: str | None = None
         self._candidate_count = 0
@@ -66,43 +77,31 @@ class TemporalLivenessDetector:
     def reset(self) -> None:
         """Clear temporal history, usually when no face is detected."""
         self._probabilities.clear()
-        self._motion_scores.clear()
-        self._previous_gray_face = None
         self._current_label = "UNCERTAIN"
         self._candidate_label = None
         self._candidate_count = 0
 
     def update(self, face_image: np.ndarray) -> dict[str, float | int | str]:
         """Add one face frame and return the current temporal liveness result."""
-        raw_probability = predict_liveness_probability(
-            face_image,
-            model_path=self.model_path,
-        )
-        motion_score = self._calculate_motion_score(face_image)
-        return self.update_probability(raw_probability, motion_score=motion_score)
+        raw_probability = _predict_real_probability(face_image, self.model_path)
+        return self.update_probability(raw_probability)
 
     def update_probability(
         self,
         real_probability: float,
-        motion_score: float | None = None,
     ) -> dict[str, float | int | str]:
         """Add one raw REAL probability and return a temporal decision."""
         real_probability = float(np.clip(real_probability, 0.0, 1.0))
         self._probabilities.append(real_probability)
-        if motion_score is not None:
-            self._motion_scores.append(float(max(0.0, motion_score)))
 
         temporal_probability = mean(self._probabilities)
         temporal_std = (
             pstdev(self._probabilities) if len(self._probabilities) > 1 else 0.0
         )
         stable_enough = temporal_std <= self.max_stable_std
-        motion_score_average = mean(self._motion_scores) if self._motion_scores else 0.0
-        motion_enough = self._has_enough_motion_for_real(motion_score_average)
         proposed_label = self._propose_label(
             temporal_probability,
             stable_enough,
-            motion_enough,
         )
         self._apply_confirmation(proposed_label)
 
@@ -111,23 +110,18 @@ class TemporalLivenessDetector:
             temporal_probability=temporal_probability,
             temporal_std=temporal_std,
             stable_enough=stable_enough,
-            motion_score=motion_score_average,
-            motion_enough=motion_enough,
         )
 
     def _propose_label(
         self,
         temporal_probability: float,
         stable_enough: bool,
-        motion_enough: bool,
     ) -> str:
         if len(self._probabilities) < self.min_frames:
             return "UNCERTAIN"
         if not stable_enough:
             return "UNCERTAIN"
         if temporal_probability >= self.real_threshold:
-            if not motion_enough:
-                return "UNCERTAIN"
             return "REAL"
         if temporal_probability <= self.spoof_threshold:
             return "SPOOF"
@@ -154,8 +148,6 @@ class TemporalLivenessDetector:
         temporal_probability: float,
         temporal_std: float,
         stable_enough: bool,
-        motion_score: float,
-        motion_enough: bool,
     ) -> dict[str, float | int | str]:
         if self._current_label == "REAL":
             confidence = temporal_probability
@@ -170,34 +162,65 @@ class TemporalLivenessDetector:
             "raw_real_probability": round(raw_probability, 4),
             "temporal_probability": round(float(temporal_probability), 4),
             "temporal_std": round(float(temporal_std), 4),
-            "motion_score": round(float(motion_score), 6),
             "stable_frames": len(self._probabilities),
             "stable_enough": "YES" if stable_enough else "NO",
-            "motion_enough": "YES" if motion_enough else "NO",
             "method": "temporal_liveness",
         }
 
-    def _calculate_motion_score(self, face_image: np.ndarray) -> float:
-        gray_face = _to_gray_float(face_image)
-        if self._previous_gray_face is None:
-            self._previous_gray_face = gray_face
-            return 0.0
 
-        motion_score = float(np.mean(np.abs(gray_face - self._previous_gray_face)))
-        self._previous_gray_face = gray_face
-        return motion_score
+def _predict_real_probability(face_image: np.ndarray, model_path: Path) -> float:
+    if model_path.suffix.lower() == ".pth":
+        return _predict_torch_real_probability(face_image, model_path)
 
-    def _has_enough_motion_for_real(self, motion_score: float) -> bool:
-        if not self.enable_motion_check:
-            return True
-        if len(self._probabilities) < self.min_frames:
-            return False
-        return motion_score >= self.min_motion_for_real
+    return predict_liveness_probability(face_image, model_path=model_path)
 
 
-def _to_gray_float(face_image: np.ndarray) -> np.ndarray:
-    image = face_image.astype("float32") / 255.0
-    red = image[:, :, 0]
-    green = image[:, :, 1]
-    blue = image[:, :, 2]
-    return 0.299 * red + 0.587 * green + 0.114 * blue
+def _predict_torch_real_probability(face_image: np.ndarray, model_path: Path) -> float:
+    global _cached_torch_device
+    global _cached_torch_model
+    global _cached_torch_model_path
+    global _cached_torch_transform
+
+    if face_image is None:
+        raise ValueError("face_image must not be None")
+    if not isinstance(face_image, np.ndarray):
+        raise TypeError("face_image must be a numpy.ndarray")
+    if face_image.ndim != 3 or face_image.shape[2] != 3:
+        raise ValueError("face_image must have shape (H, W, 3) in RGB format")
+
+    resolved_model_path = model_path.resolve()
+    if _cached_torch_model is None or _cached_torch_model_path != resolved_model_path:
+        import torch
+        from torchvision import transforms
+
+        from anti_spoofing.liveness_models_kaixiang import load_checkpoint
+        from anti_spoofing.liveness_training_kaixiang import IMAGENET_MEAN, IMAGENET_STD
+
+        _cached_torch_device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
+        _cached_torch_model, _, _cached_torch_device = load_checkpoint(
+            resolved_model_path,
+            device=_cached_torch_device,
+        )
+        _cached_torch_transform = transforms.Compose(
+            [
+                transforms.ToPILImage(),
+                transforms.Resize((256, 256)),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+            ]
+        )
+        _cached_torch_model_path = resolved_model_path
+
+    import torch
+
+    image = face_image
+    if image.dtype != np.uint8:
+        image = np.clip(image, 0, 255).astype(np.uint8)
+
+    tensor = _cached_torch_transform(image).unsqueeze(0).to(_cached_torch_device)
+    with torch.no_grad():
+        logit = _cached_torch_model(tensor).squeeze(1)
+        return float(torch.sigmoid(logit).item())
