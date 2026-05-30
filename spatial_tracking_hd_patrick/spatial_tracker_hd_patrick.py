@@ -14,7 +14,7 @@ class SpatialAttendanceTracker:
         self.camera_frame_height = camera_frame_height
         
         # Stores the movement and time data for every registered individual.
-        self.student_tracking_database = {}
+        self.session_tracking_database = {}
 
     def calculate_spatial_zone(self, bounding_box_x1, bounding_box_y1, bounding_box_x2, bounding_box_y2):
         # Calculate the exact center pixel coordinates of the detected face bounding box.
