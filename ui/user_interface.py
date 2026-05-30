@@ -98,10 +98,6 @@ class UserInterface:
         # Initialise the video capture object to use the primary default webcam.
         live_webcam_feed = cv2.VideoCapture(0)
 
-        # Request a resolution of 1280x720 pixels from the webcam hardware.
-        live_webcam_feed.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        live_webcam_feed.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-
         # ==============================================================================
         # --- HD SPATIAL TRACKING (PATRICK LUNNEY) ---
         # Retrieve the default hardware resolution of the active webcam.
@@ -158,22 +154,37 @@ class UserInterface:
                         # ==============================================================================
                         # --- HD SPATIAL TRACKING (PATRICK LUNNEY) ---
                         # Pass the identified person and coordinates to the spatial tracking database.
-                        attendance_tracker.log_person(
+                        tracking_result_tuple = attendance_tracker.log_person(
                             identity_name=classification_result['best_identity'],
                             bounding_box_coordinates=[x1, y1, x2, y2]
                         )
+                        
+                        # Extract the current spatial zone from the second index of the returned tuple.
+                        current_spatial_zone = tracking_result_tuple[1]
+                        
+                        # Append the calculated spatial zone directly to the live webcam label.
+                        label = f"{classification_result['best_identity']} {classification_result['similarity_score']}\n[{current_spatial_zone}]"
                         # ==============================================================================
 
                 cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
-                cv2.putText(
-                    current_video_frame,
-                    label,
-                    (x1, max(20, y1 - 10)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    color,
-                    2,
-                )
+                
+                # Split label into lines to support the newline character in OpenCV
+                label_lines = label.split('\n')
+                
+                # Determine initial vertical position (offset upwards if multiple lines exist)
+                y_offset = max(20, y1 - 10) - ((len(label_lines) - 1) * 20)
+                
+                for line in label_lines:
+                    cv2.putText(
+                        current_video_frame,
+                        line,
+                        (x1, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        color,
+                        2,
+                    )
+                    y_offset += 25
             
             # ==============================================================================
             # --- HD SPATIAL TRACKING (PATRICK LUNNEY) ---

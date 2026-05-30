@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import cv2
 import numpy as np
+import math
 
 class SpatialAttendanceTracker:
     def __init__(self, camera_frame_width, camera_frame_height):
@@ -131,7 +132,7 @@ class SpatialAttendanceTracker:
         # Generate the CSV Attendance Log
         with open(csv_filename, mode='w', newline='') as csv_file:
             csv_writer = csv.writer(csv_file)
-            csv_writer.writerow(["Name", "Arrival Time", "Final Zone", "Total Zone Changes", "Most Used Zone", "Total Seconds Tracked"])
+            csv_writer.writerow(["Name", "Arrival Time", "Final Zone", "Total Zone Changes", "Most Used Zone", "Total Seconds Tracked", "Total Distance (px)"])
 
             # Extract the dictionary items and sort them alphabetically by the identity_name key.
             sorted_tracking_data = sorted(self.session_tracking_database.items())
@@ -140,13 +141,29 @@ class SpatialAttendanceTracker:
                 most_used_zone = max(data["zone_dwell_times_seconds"], key=data["zone_dwell_times_seconds"].get)
                 total_time = sum(data["zone_dwell_times_seconds"].values())
                 
+                # Calculate the total physical distance moved across the camera frame in pixels.
+                total_pixel_distance_moved = 0.0
+                coordinate_list_length = len(data["movement_path_coordinates"])
+                
+                for current_index in range(1, coordinate_list_length):
+                    previous_point = data["movement_path_coordinates"][current_index - 1]
+                    current_point = data["movement_path_coordinates"][current_index]
+
+                    # Verify both points contain valid coordinates before calculating distance.
+                    if previous_point is not None and current_point is not None:
+                        horizontal_difference = current_point[0] - previous_point[0]
+                        vertical_difference = current_point[1] - previous_point[1]
+                        distance_between_points = math.hypot(horizontal_difference, vertical_difference)
+                        total_pixel_distance_moved = total_pixel_distance_moved + distance_between_points
+                
                 csv_writer.writerow([
                     name,
                     data["arrival_time_formatted"],
                     data["current_zone"],
                     data["total_zone_changes"],
                     most_used_zone,
-                    round(total_time, 2)
+                    round(total_time, 2),
+                    round(total_pixel_distance_moved, 2)
                 ])
         print(f"CSV Report successfully saved to {csv_filename}")
 
