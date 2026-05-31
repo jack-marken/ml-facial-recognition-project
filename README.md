@@ -1,14 +1,43 @@
 # ml-facial-recognition-project
 
-TODO - Clearly explain the following:
-* how to install requirements
-* where to place datasets
-* how to run training scripts
-* how to run the final system
-* how registration works
-* which models are used and whether they are fine-tuned
+## Installation instructions
 
-## 1. Face Detection Module (YOLOv11) - PATRICK (100599029)
+Create and activate python 3.11 virtual environment:
+
+* MacOS/Linux:
+
+  ```bash
+  $ python3.11 -m venv .venv
+  $ source myenv/bin/activate
+  ```
+
+* Windows:
+
+  ```powershell
+  > py -3.11 -m venv .venv
+  > myenv\Scripts\Activate.ps1
+  ```
+
+Install the necessary packages with pip:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Run the Program
+
+To run the UI, simply run:
+
+```
+python main.py
+```
+
+# Features During Development
+
+Below is a log of notes created during the development of the program. It gives an insight into how the files interconnect and a timeline of trained models.
+
+
+## Face Detection Module (YOLOv11) - PATRICK (100599029)
 
 ### Setup and Installation
 1. Ensure you have created and activated a Python 3.11 virtual environment (`.venv`).
@@ -40,7 +69,7 @@ Here is a breakdown of the files I have added/updated and how to use them for th
 * **`models/detection_yolo.pt`**
   The final trained AI weights. This is the only model file the system actually needs to run face detection.
 
-* **`detection/detector.py` (USE THIS FOR INTEGRATION)**
+* **`detection/detector.py` (USED FOR INTEGRATION)**
   This is the silent API built for the rest of the team. It does not open a webcam or print to the terminal. You just import it, feed it an image frame, and it returns the exact dictionary format required by the Unified Guidelines. It contains two functions depending on what downstream data your module needs:  
   **1. Basic Face Detection (Bounding Box Only)**:
 
