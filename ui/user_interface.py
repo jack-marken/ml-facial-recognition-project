@@ -11,8 +11,10 @@ from emotion_detection.emotion_detector import EmotionDetector
 from face_verification.metric_learning.recognition_kaixiang import predict_identity
 from face_verification.metric_learning.build_gallery_kaixiang import main as build_identity_gallery
 from anti_spoofing.liveness_kaixiang import predict_liveness
+from fatigue_detection import FatigueDetector  # Karam — fatigue detection
 
 # Authors: Jack (105417647), Patrick (100599029)
+# Fatigue detection integration: Karamjot Singh (104809887)
 
 class UserInterface:
     """Main user interface for the face recognition attendance system
@@ -23,6 +25,7 @@ class UserInterface:
     """
     def __init__(self):
         self.emotion_detector = EmotionDetector()
+        self.fatigue_detector = FatigueDetector()  # Karam
 
     def register_employee(self, cropped_img, standardized_img):
         """Tkinter pop-up window for registering a new employee
@@ -55,6 +58,7 @@ class UserInterface:
             cv2.imwrite(filename, rgb_face)
             print(f"Saved: {filename}")
             build_identity_gallery()
+            self.fatigue_detector.reset()  # Karam — reset window between people
             root.destroy()
 
         # main application window
@@ -97,8 +101,9 @@ class UserInterface:
         live_webcam_feed = cv2.VideoCapture(0)
 
         print("Webcam initialised. Press 'q' in the video window to quit.")
-
         print("Webcam initialised. Press 'Enter' in the video window to register a new face.")
+        print("Press 'e' to toggle emotion detection.")
+        print("Press 'f' to toggle fatigue detection.")  # Karam
 
         # Begin an infinite loop to process the webcam feed frame by frame.
         while live_webcam_feed.isOpened():
@@ -139,6 +144,15 @@ class UserInterface:
                     if self.emotion_detector.active == True:
                         emotion_result = "Emotion: " + self.emotion_detector.detect_emotion(detection_results["raw_face_image"])
                         cv2.putText(current_video_frame, emotion_result, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+                        cv2.putText(current_video_frame, emotion_result, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
+
+                    # Karam — fatigue detection
+                    if self.fatigue_detector.active:
+                        fatigue_result = self.fatigue_detector.update(detection_results["face_image"])
+                        fatigue_label  = f"Fatigue: {fatigue_result['fatigue']} ({fatigue_result['indicator']})"
+                        fatigue_colour = (0, 140, 255) if fatigue_result["fatigue"] == "DROWSY" else (0, 210, 0)
+                        cv2.putText(current_video_frame, fatigue_label, (10, 48), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+                        cv2.putText(current_video_frame, fatigue_label, (10, 48), cv2.FONT_HERSHEY_SIMPLEX, 0.7, fatigue_colour, 1)
 
                 cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(
@@ -168,6 +182,8 @@ class UserInterface:
                         messagebox.showinfo("Anti-spoofing verification", "Face was not clear enough to be verified. Please ensure that your face is fully shown.")
             elif keyboard_input & 0xFF == ord('e'):
                 self.emotion_detector.toggle_active()
+            elif keyboard_input & 0xFF == ord('f'):  # Karam — toggle fatigue
+                self.fatigue_detector.toggle_active()
 
         # Release the webcam hardware and close all created graphical windows.
         live_webcam_feed.release()
