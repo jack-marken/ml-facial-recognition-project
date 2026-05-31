@@ -19,3 +19,4 @@ yolo26n.pt
 models/torch_cache/
 
 .idea/
+.DS_Store

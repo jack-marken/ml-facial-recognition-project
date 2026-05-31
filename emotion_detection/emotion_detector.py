@@ -4,10 +4,10 @@
 
 import cv2
 import numpy as np
-from PIL import Image
 import tensorflow as tf
 
-emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
+# FER-2013 label order used by the trained model.
+emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
 
 class EmotionDetector:
     def __init__(self, model_path="models/emotion_model.h5", active=True):
@@ -19,12 +19,12 @@ class EmotionDetector:
         # Switch the active state between True and False.
         self.active = not self.active
 
-    def detect_emotion(self, face_image_array: np.ndarray) -> str:
+    def predict_emotion(self, face_image_array: np.ndarray) -> dict:
         # Convert the input RGB image to a grayscale image.
         grayscale_image = cv2.cvtColor(face_image_array, cv2.COLOR_RGB2GRAY)
         
         # Resize the grayscale image to 48 by 48 pixels to match the input shape of the model.
-        resized_grayscale_image = cv2.resize(grayscale_image, (48, 48), interpolation=cv2.INTER_NEAREST)
+        resized_grayscale_image = cv2.resize(grayscale_image, (48, 48), interpolation=cv2.INTER_AREA)
         
         # Convert the image data type to a 32-bit floating point number.
         float_image_array = np.array(resized_grayscale_image, dtype="float32")
@@ -41,12 +41,27 @@ class EmotionDetector:
         final_input_tensor = np.expand_dims(image_with_batch_dimension, axis=-1)
 
         # Generate probability weights for each emotion category.
-        prediction_weights_array = self.model.predict(final_input_tensor, verbose=0)
+        prediction_weights_array = self.model.predict(final_input_tensor, verbose=0)[0]
         
         # Find the index of the highest probability weight.
         highest_probability_index = np.argmax(prediction_weights_array)
         
         # Retrieve the corresponding human-readable emotion label.
         predicted_emotion_string = emotion_labels[highest_probability_index]
+
+        confidence = float(prediction_weights_array[highest_probability_index])
+        probabilities = {
+            emotion_labels[index]: float(score)
+            for index, score in enumerate(prediction_weights_array)
+        }
         
-        return predicted_emotion_string
+        return {
+            "emotion": predicted_emotion_string,
+            "confidence": confidence,
+            "probabilities": probabilities,
+        }
+
+    def detect_emotion(self, face_image_array: np.ndarray) -> str:
+        prediction_result = self.predict_emotion(face_image_array)
+        
+        return prediction_result["emotion"]
