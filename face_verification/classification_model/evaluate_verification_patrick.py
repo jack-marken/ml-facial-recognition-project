@@ -5,6 +5,8 @@ from PIL import Image
 import matplotlib.pyplot as pyplot
 from sklearn import metrics
 from tqdm import tqdm
+import seaborn as sns
+import pandas as pd
 
 # Author: Patrick (100599029)
 
@@ -169,3 +171,25 @@ if __name__ == '__main__':
     
     # Prints a final confirmation message to the terminal.
     print(f"\nEvaluation complete. Graph successfully saved to: {final_image_filename}")
+
+    print("Generating Score Distribution Density Plot...")
+
+    # Separate the cosine scores based on whether they were actual matches (1) or imposters (0)
+    genuine_scores = [score for score, label in zip(cosine_similarity_scores_list, ground_truth_labels_list) if label == 1]
+    imposter_scores = [score for score, label in zip(cosine_similarity_scores_list, ground_truth_labels_list) if label == 0]
+
+    # Create a clean, academic plot
+    pyplot.figure(figsize=(10, 6))
+    sns.kdeplot(genuine_scores, fill=True, color="blue", label="Genuine Pairs (Same Person)", alpha=0.5)
+    sns.kdeplot(imposter_scores, fill=True, color="red", label="Imposter Pairs (Different People)", alpha=0.5)
+
+    pyplot.title("Cosine Similarity Score Distribution (MobileNetV2)")
+    pyplot.xlabel("Cosine Similarity Score")
+    pyplot.ylabel("Density")
+    pyplot.legend()
+    pyplot.grid(True, linestyle='--', alpha=0.7)
+
+    # Save the graph
+    distribution_filename = "reports/Patrick_MobileNetV2_Score_Distribution.png"
+    pyplot.savefig(distribution_filename, bbox_inches='tight')
+    print(f"Distribution graph saved to: {distribution_filename}")

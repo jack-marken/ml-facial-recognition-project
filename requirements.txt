@@ -7,3 +7,4 @@ torchvision
 tensorflow
 ultralytics
 scikit-learn
+seaborn
