@@ -4,17 +4,18 @@ Treats face recognition as a closed-set classification problem. The backbone
 is fine-tuned with CrossEntropyLoss; after training, the classification head
 is discarded and the backbone's 512-dim output is used as a face embedding.
 
+Speed optimisations applied (vs baseline):
+  1. Mixed-precision training (AMP) — ~2-3x faster on any NVIDIA GPU
+  2. Larger default batch size (64)  — better GPU utilisation
+  3. Parallel data loading (num_workers=4, pin_memory, persistent_workers)
+  4. cudnn.benchmark=True            — auto-tunes kernels for fixed input size
+
 Usage:
     python -m face_verification.classification_model.train_classification_karam \\
         --data-dir datasets/classification_data/train_data \\
         --val-dir  datasets/classification_data/val_data  \\
         --output   models/recognition_classification_karam.pth \\
-        --epochs   30
-
-Dataset layout (same as metric-learning module):
-    data_dir/
-        identity_A/   img1.jpg  img2.jpg  ...
-        identity_B/   ...
+        --epochs   10
 """
 # Author: Karam
 
@@ -26,8 +27,10 @@ from pathlib import Path
 import cv2
 import torch
 from torch import nn
+from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
+from tqdm import tqdm
 
 from .classification_model_karam import FaceClassificationModel
 
@@ -104,16 +107,20 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train classification-based face recognition (Karam)."
     )
-    parser.add_argument("--data-dir",       default="datasets/classification_data/train_data")
-    parser.add_argument("--val-dir",        default="datasets/classification_data/val_data")
-    parser.add_argument("--output",         default="models/recognition_classification_karam.pth")
-    parser.add_argument("--epochs",         type=int,   default=30)
-    parser.add_argument("--batch-size",     type=int,   default=32)
-    parser.add_argument("--learning-rate",  type=float, default=1e-4)
-    parser.add_argument("--num-workers",    type=int,   default=0)
+    parser.add_argument("--data-dir",      default="datasets/classification_data/train_data")
+    parser.add_argument("--val-dir",       default="datasets/classification_data/val_data")
+    parser.add_argument("--output",        default="models/recognition_classification_karam.pth")
+    parser.add_argument("--epochs",        type=int,   default=10)
+    parser.add_argument("--batch-size",    type=int,   default=64)
+    parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--num-workers",   type=int,   default=4)
     parser.add_argument(
         "--train-backbone", action="store_true",
         help="Unfreeze all backbone layers. Default: freeze all except layer4.",
+    )
+    parser.add_argument(
+        "--no-amp", action="store_true",
+        help="Disable mixed-precision training (use if you get AMP-related errors).",
     )
     return parser.parse_args()
 
@@ -121,20 +128,41 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args   = parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    use_amp = device.type == "cuda" and not args.no_amp
+
+    # Auto-tune cudnn kernels for fixed 224x224 input — free ~5-10% speedup
+    if device.type == "cuda":
+        torch.backends.cudnn.benchmark = True
+
+    print(f"Using device  : {device}")
+    print(f"Mixed precision: {'ON' if use_amp else 'OFF'}")
 
     train_dataset = FaceClassificationDataset(args.data_dir, transform=TRAIN_TRANSFORMS)
     val_dataset   = FaceClassificationDataset(args.val_dir,  transform=VAL_TRANSFORMS)
 
     num_classes = train_dataset.num_classes
-    print(f"Identities : {num_classes}")
-    print(f"Train images: {len(train_dataset)}   Val images: {len(val_dataset)}")
+    print(f"Identities    : {num_classes}")
+    print(f"Train images  : {len(train_dataset)}   Val images: {len(val_dataset)}")
+    print(f"Batch size    : {args.batch_size}   Workers: {args.num_workers}")
 
+    # pin_memory=True speeds up CPU→GPU transfer significantly
+    # persistent_workers=True avoids respawning worker processes each epoch
+    pin = device.type == "cuda"
     train_loader = DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=True,  num_workers=args.num_workers
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+        pin_memory=pin,
+        persistent_workers=args.num_workers > 0,
     )
     val_loader = DataLoader(
-        val_dataset,   batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
+        val_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=pin,
+        persistent_workers=args.num_workers > 0,
     )
 
     model = FaceClassificationModel(num_classes=num_classes, pretrained=True)
@@ -147,20 +175,28 @@ def main() -> None:
         [p for p in model.parameters() if p.requires_grad],
         lr=args.learning_rate,
     )
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+    # GradScaler prevents float16 underflow during mixed-precision backprop
+    scaler = GradScaler(device="cuda", enabled=use_amp)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     best_val_acc = 0.0
 
     for epoch in range(1, args.epochs + 1):
-        train_loss, train_acc = _run_epoch(model, train_loader, loss_fn, device, optimizer)
-        val_loss,   val_acc   = _run_epoch(model, val_loader,   loss_fn, device, optimizer=None)
+        print(f"\nEpoch {epoch:02d}/{args.epochs}")
+        train_loss, train_acc = _run_epoch(
+            model, train_loader, loss_fn, device, optimizer,
+            scaler=scaler, use_amp=use_amp, desc="  Train",
+        )
+        val_loss, val_acc = _run_epoch(
+            model, val_loader, loss_fn, device, optimizer=None,
+            scaler=scaler, use_amp=use_amp, desc="  Val  ",
+        )
         scheduler.step()
 
         print(
-            f"Epoch {epoch:02d}/{args.epochs}  "
-            f"train_loss={train_loss:.4f}  train_acc={train_acc:.3f}  "
+            f"  → train_loss={train_loss:.4f}  train_acc={train_acc:.3f}  "
             f"val_loss={val_loss:.4f}  val_acc={val_acc:.3f}"
         )
 
@@ -168,12 +204,12 @@ def main() -> None:
             best_val_acc = val_acc
             torch.save(
                 {
-                    "architecture":       "resnet34",
-                    "num_classes":        num_classes,
-                    "identity_to_label":  train_dataset.identity_to_label,
-                    "label_to_identity":  train_dataset.label_to_identity,
-                    "model_state_dict":   model.state_dict(),
-                    "val_accuracy":       best_val_acc,
+                    "architecture":      "resnet34",
+                    "num_classes":       num_classes,
+                    "identity_to_label": train_dataset.identity_to_label,
+                    "label_to_identity": train_dataset.label_to_identity,
+                    "model_state_dict":  model.state_dict(),
+                    "val_accuracy":      best_val_acc,
                 },
                 output_path,
             )
@@ -181,11 +217,14 @@ def main() -> None:
 
 
 def _run_epoch(
-    model: FaceClassificationModel,
-    loader: DataLoader,
-    loss_fn: nn.Module,
-    device: torch.device,
+    model:     FaceClassificationModel,
+    loader:    DataLoader,
+    loss_fn:   nn.Module,
+    device:    torch.device,
     optimizer: torch.optim.Optimizer | None,
+    scaler:    GradScaler = None,
+    use_amp:   bool = False,
+    desc:      str  = "",
 ) -> tuple[float, float]:
     is_training = optimizer is not None
     model.train() if is_training else model.eval()
@@ -194,29 +233,33 @@ def _run_epoch(
     total_correct = 0
     total_samples = 0
 
-    for images, labels in loader:
-        images = images.to(device)
-        labels = labels.to(device)
+    bar = tqdm(loader, desc=desc, leave=False, unit="batch", dynamic_ncols=True)
+    for images, labels in bar:
+        # non_blocking=True overlaps data transfer with GPU compute
+        images = images.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True)
 
         if optimizer is not None:
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)  # faster than zero_grad()
 
-        with torch.set_grad_enabled(is_training):
+        # autocast runs forward pass in float16 — much faster on modern GPUs
+        with autocast(device_type=device.type, enabled=use_amp):
             logits = model(images)
             loss   = loss_fn(logits, labels)
 
         if optimizer is not None:
-            loss.backward()
-            optimizer.step()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
         preds          = logits.argmax(dim=1)
         total_correct += (preds == labels).sum().item()
         total_loss    += float(loss.item()) * images.size(0)
         total_samples += images.size(0)
 
-    avg_loss = total_loss    / max(total_samples, 1)
-    accuracy = total_correct / max(total_samples, 1)
-    return avg_loss, accuracy
+        bar.set_postfix(loss=f"{loss.item():.4f}", acc=f"{total_correct/total_samples:.3f}")
+
+    return total_loss / max(total_samples, 1), total_correct / max(total_samples, 1)
 
 
 def _freeze_backbone_except_last_block(model: FaceClassificationModel) -> None:

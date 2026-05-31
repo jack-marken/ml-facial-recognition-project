@@ -9,3 +9,4 @@ ultralytics
 mediapipe
 scikit-learn
 matplotlib
+tqdm
