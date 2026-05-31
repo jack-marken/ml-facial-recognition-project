@@ -1,4 +1,5 @@
 import cv2
+import time
 from ultralytics import YOLO
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -8,6 +9,7 @@ from pathlib import Path
 # APIs from the local project files
 from detection.detector import detect_and_crop_face
 from emotion_detection.emotion_detector import EmotionDetector
+from emotion_detection.emotion_analytics import log_emotion, show_analytics
 from face_verification.metric_learning.recognition_kaixiang import predict_identity
 from face_verification.metric_learning.build_gallery_kaixiang import main as build_identity_gallery
 from anti_spoofing.liveness_kaixiang import predict_liveness
@@ -23,6 +25,8 @@ class UserInterface:
     """
     def __init__(self):
         self.emotion_detector = EmotionDetector()
+        self.last_emotion_log_time = 0
+        self.emotion_log_interval_seconds = 2
 
     def register_employee(self, cropped_img, standardized_img):
         """Tkinter pop-up window for registering a new employee
@@ -99,6 +103,7 @@ class UserInterface:
         print("Webcam initialised. Press 'q' in the video window to quit.")
 
         print("Webcam initialised. Press 'Enter' in the video window to register a new face.")
+        print("Press 'e' to toggle emotion detection and 'a' to show emotion analytics.")
 
         # Begin an infinite loop to process the webcam feed frame by frame.
         while live_webcam_feed.isOpened():
@@ -133,12 +138,22 @@ class UserInterface:
                     color = (0, 255, 0)
                     if classification_result["similarity_score"] < 0.88:
                         label = "[unknown]"
+                        identity = "unknown"
                     else:
-                        label = f"{classification_result['best_identity']} {classification_result['similarity_score']}" 
+                        identity = classification_result["best_identity"]
+                        label = f"{identity} {classification_result['similarity_score']}" 
                     
                     if self.emotion_detector.active == True:
-                        emotion_result = "Emotion: " + self.emotion_detector.detect_emotion(detection_results["raw_face_image"])
+                        emotion_prediction = self.emotion_detector.predict_emotion(detection_results["face_image"])
+                        detected_emotion = emotion_prediction["emotion"]
+                        emotion_confidence = emotion_prediction["confidence"]
+                        emotion_result = f"Emotion: {detected_emotion} {emotion_confidence:.2f}"
                         cv2.putText(current_video_frame, emotion_result, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+
+                        current_time = time.time()
+                        if current_time - self.last_emotion_log_time >= self.emotion_log_interval_seconds:
+                            log_emotion(detected_emotion, identity)
+                            self.last_emotion_log_time = current_time
 
                 cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(
@@ -168,6 +183,8 @@ class UserInterface:
                         messagebox.showinfo("Anti-spoofing verification", "Face was not clear enough to be verified. Please ensure that your face is fully shown.")
             elif keyboard_input & 0xFF == ord('e'):
                 self.emotion_detector.toggle_active()
+            elif keyboard_input & 0xFF == ord('a'):
+                show_analytics()
 
         # Release the webcam hardware and close all created graphical windows.
         live_webcam_feed.release()

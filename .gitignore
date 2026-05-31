@@ -16,6 +16,10 @@ yolo11n.pt
 yolo26n.pt
 
 # Local model/dependency caches
+.cache/
 models/torch_cache/
+
+# Runtime analytics output
+emotion_log.csv
 
 .idea/
