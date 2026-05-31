@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 import math
 
+# Author: Patrick Lunney (100599029)
+
 class SpatialAttendanceTracker:
     def __init__(self, camera_frame_width, camera_frame_height):
         # Sets the width of the incoming webcam video feed.
