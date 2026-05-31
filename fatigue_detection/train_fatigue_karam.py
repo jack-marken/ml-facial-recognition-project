@@ -1,19 +1,20 @@
-"""Train fatigue/drowsiness detection model — auto-downloads dataset (Karam D/HD).
+"""Train fatigue/drowsiness detection model (Karam — D/HD Innovative Feature).
 
-Automatically downloads the Yawn Eye Dataset from Kaggle.
-No manual downloading required.
+Dataset: Yawn Eye Dataset
+  https://www.kaggle.com/datasets/serenaraju/yawn-eye-dataset-new
 
-You only need your Kaggle credentials (asked once, inline):
-  1. Go to https://www.kaggle.com/settings
-  2. Scroll to API section → click "Create New Token"
-  3. A kaggle.json file downloads — open it, copy username and key
-  4. Paste them when this script asks
+4 classes covering all fatigue indicators:
+  Closed   → eyes shut     → DROWSY signal
+  Open     → eyes open     → ALERT
+  Yawn     → yawning       → DROWSY signal
+  no_yawn  → normal face   → ALERT
 
-4 fatigue indicators detected:
-  Closed   → eyes shut        → DROWSY signal
-  Open     → eyes open        → ALERT
-  Yawn     → mouth yawning    → DROWSY signal
-  no_yawn  → normal face      → ALERT
+Expected dataset layout:
+    datasets/yawn_eye/
+        train/
+            Closed/    Open/    Yawn/    no_yawn/
+        test/
+            Closed/    Open/    Yawn/    no_yawn/
 
 Usage:
     python -m fatigue_detection.train_fatigue_karam
@@ -24,24 +25,25 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
-import subprocess
-import sys
 from pathlib import Path
 
-import numpy as np
+import tensorflow as tf
+from tensorflow.keras import layers, Model
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-DATASET_URL   = "https://www.kaggle.com/datasets/serenaraju/yawn-eye-dataset-new"
-DATASET_DIR   = Path("datasets/yawn_eye")
-DOWNLOAD_DIR  = Path("datasets")
-DEFAULT_OUT   = "models/fatigue_karam.h5"
-IMAGE_SIZE    = (224, 224)
+
+DATASET_DIR = Path("datasets/yawn_eye")
+DEFAULT_OUT = "models/fatigue_karam.h5"
+IMAGE_SIZE  = (224, 224)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Train fatigue detection model — auto-downloads dataset (Karam)."
+        description="Train fatigue detection model on Yawn Eye Dataset (Karam)."
     )
+    parser.add_argument("--data-dir",      default=str(DATASET_DIR))
     parser.add_argument("--output",        default=DEFAULT_OUT)
     parser.add_argument("--epochs",        type=int,   default=20)
     parser.add_argument("--batch-size",    type=int,   default=32)
@@ -50,21 +52,21 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    args = parse_args()
+    args      = parse_args()
+    data_dir  = Path(args.data_dir)
+    train_dir = data_dir / "train"
+    test_dir  = data_dir / "test"
 
-    # ── Step 1: Auto-download dataset ────────────────────────────────────
-    _ensure_dataset()
+    if not train_dir.exists():
+        print(f"\nERROR: Could not find {train_dir}")
+        print("Make sure the dataset is placed at:")
+        print("  datasets/yawn_eye/train/Closed/")
+        print("  datasets/yawn_eye/train/Open/")
+        print("  datasets/yawn_eye/train/Yawn/")
+        print("  datasets/yawn_eye/train/no_yawn/\n")
+        return
 
-    # ── Step 2: Build data generators ────────────────────────────────────
-    import tensorflow as tf
-    from tensorflow.keras import layers, Model
-    from tensorflow.keras.applications import MobileNetV2
-    from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-    from tensorflow.keras.preprocessing.image import ImageDataGenerator
-
-    train_dir = DATASET_DIR / "train"
-    test_dir  = DATASET_DIR / "test"
-
+    # ── Data generators ───────────────────────────────────────────────────
     train_gen = ImageDataGenerator(
         rescale=1.0 / 255,
         rotation_range=10,
@@ -92,10 +94,16 @@ def main() -> None:
     )
 
     print(f"\nClasses : {train_data.class_indices}")
-    print(f"Train   : {train_data.samples}  Val: {val_data.samples}  Test: {test_data.samples}\n")
+    print(f"Train   : {train_data.samples}")
+    print(f"Val     : {val_data.samples}")
+    print(f"Test    : {test_data.samples}\n")
 
-    # ── Step 3: Build MobileNetV2 model ───────────────────────────────────
-    base = MobileNetV2(input_shape=(*IMAGE_SIZE, 3), include_top=False, weights="imagenet")
+    # ── Model ─────────────────────────────────────────────────────────────
+    base = MobileNetV2(
+        input_shape=(*IMAGE_SIZE, 3),
+        include_top=False,
+        weights="imagenet",
+    )
     for layer in base.layers[:-20]:
         layer.trainable = False
 
@@ -111,97 +119,47 @@ def main() -> None:
         loss="categorical_crossentropy",
         metrics=["accuracy"],
     )
+    model.summary(line_length=80)
 
-    # ── Step 4: Train ─────────────────────────────────────────────────────
+    # ── Train ─────────────────────────────────────────────────────────────
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     callbacks = [
-        ModelCheckpoint(str(output_path), monitor="val_accuracy",
-                        save_best_only=True, verbose=1),
-        EarlyStopping(monitor="val_accuracy", patience=5,
-                      restore_best_weights=True, verbose=1),
-        ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=3, verbose=1),
+        ModelCheckpoint(
+            str(output_path), monitor="val_accuracy",
+            save_best_only=True, verbose=1,
+        ),
+        EarlyStopping(
+            monitor="val_accuracy", patience=5,
+            restore_best_weights=True, verbose=1,
+        ),
+        ReduceLROnPlateau(
+            monitor="val_loss", factor=0.5,
+            patience=3, verbose=1,
+        ),
     ]
 
-    model.fit(train_data, validation_data=val_data,
-              epochs=args.epochs, callbacks=callbacks)
+    model.fit(
+        train_data,
+        validation_data=val_data,
+        epochs=args.epochs,
+        callbacks=callbacks,
+    )
 
-    # ── Step 5: Evaluate ──────────────────────────────────────────────────
+    # ── Evaluate ──────────────────────────────────────────────────────────
     print("\nEvaluating on test set...")
     test_loss, test_acc = model.evaluate(test_data, verbose=1)
-    print(f"\nTest accuracy: {test_acc:.4f}")
+    print(f"\nTest accuracy : {test_acc:.4f}")
 
-    # Save class index map for inference
+    # Save class index map used by fatigue_karam.py at inference
     class_map_path = output_path.parent / "fatigue_class_indices_karam.json"
     with class_map_path.open("w") as f:
         json.dump(train_data.class_indices, f, indent=2)
 
-    print(f"\nModel saved      → {output_path}")
+    print(f"Model saved      → {output_path}")
     print(f"Class map saved  → {class_map_path}")
-    print("\nDone! Now run:  python test_fatigue_karam.py")
-
-
-def _ensure_dataset() -> None:
-    """Download and organise the Yawn Eye Dataset if not already present."""
-
-    train_dir = DATASET_DIR / "train"
-    if train_dir.exists() and any(train_dir.iterdir()):
-        print(f"Dataset already exists at {DATASET_DIR} — skipping download.\n")
-        return
-
-    print("=" * 60)
-    print("Yawn Eye Dataset not found — downloading from Kaggle.")
-    print("=" * 60)
-    print("\nYou need your Kaggle API credentials:")
-    print("  1. Go to https://www.kaggle.com/settings")
-    print("  2. Scroll to 'API' section → click 'Create New Token'")
-    print("  3. Open the downloaded kaggle.json and copy username + key\n")
-
-    # Install opendatasets if needed
-    try:
-        import opendatasets as od
-    except ImportError:
-        print("Installing opendatasets...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install",
-                               "opendatasets", "-q"])
-        import opendatasets as od
-
-    # Download — asks for username + key inline
-    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    od.download(DATASET_URL, data_dir=str(DOWNLOAD_DIR))
-
-    # opendatasets extracts into datasets/yawn-eye-dataset-new/
-    # Rename to our expected path: datasets/yawn_eye/
-    raw_folder = DOWNLOAD_DIR / "yawn-eye-dataset-new"
-    if raw_folder.exists() and not DATASET_DIR.exists():
-        raw_folder.rename(DATASET_DIR)
-        print(f"\nDataset organised → {DATASET_DIR}")
-
-    # Verify the expected structure
-    _verify_structure()
-
-
-def _verify_structure() -> None:
-    """Check folder structure and fix common naming issues."""
-    expected_classes = {"Closed", "Open", "Yawn", "no_yawn"}
-    train_dir = DATASET_DIR / "train"
-    test_dir  = DATASET_DIR / "test"
-
-    for split_dir in [train_dir, test_dir]:
-        if not split_dir.exists():
-            raise RuntimeError(
-                f"Expected folder not found: {split_dir}\n"
-                f"Check that the dataset extracted correctly into {DATASET_DIR}"
-            )
-        found = {p.name for p in split_dir.iterdir() if p.is_dir()}
-        missing = expected_classes - found
-        if missing:
-            print(f"Warning: missing class folders in {split_dir.name}/: {missing}")
-        else:
-            print(f"  {split_dir.name}/ — classes OK: {sorted(found)}")
-
-    print()
+    print("\nDone! Run:  python test_fatigue_karam.py")
 
 
 if __name__ == "__main__":
