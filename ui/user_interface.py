@@ -99,10 +99,6 @@ class UserInterface:
         # Initialise the video capture object to use the primary default webcam.
         live_webcam_feed = cv2.VideoCapture(0)
 
-        # Request a resolution of 1280x720 pixels from the webcam hardware.
-        live_webcam_feed.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        live_webcam_feed.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-
         # ==============================================================================
         # --- SUPERVISED CLASSIFICATION MODEL INTEGRATION (PATRICK LUNNEY) ---
         print("Initialising the custom MobileNetV2 classification verifier.")
