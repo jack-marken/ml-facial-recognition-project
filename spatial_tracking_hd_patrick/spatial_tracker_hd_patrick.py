@@ -19,6 +19,9 @@ class SpatialAttendanceTracker:
         # Stores the movement and time data for every registered individual.
         self.session_tracking_database = {}
 
+        # Dictionary to temporarily hold identities pending the 1-second verification threshold.
+        self.pending_identities = {}
+
     def calculate_spatial_zone(self, bounding_box_x1, bounding_box_y1, bounding_box_x2, bounding_box_y2):
         # Calculate the exact center pixel coordinates of the detected face bounding box.
         face_center_x = int((bounding_box_x1 + bounding_box_x2) / 2)
@@ -58,22 +61,63 @@ class SpatialAttendanceTracker:
 
         # Calculate the current spatial zone and the exact center point of the face.
         current_zone_identifier, face_center_x, face_center_y = self.calculate_spatial_zone(
-            bounding_box_x1, 
-            bounding_box_y1, 
-            bounding_box_x2, 
-            bounding_box_y2
+            bounding_box_x1, bounding_box_y1, bounding_box_x2, bounding_box_y2
         )
         
         # Get the current system time in seconds.
         current_system_time = time.time()
 
-        # Check if the person is being tracked for the very first time.
-        if identity_name not in self.session_tracking_database:
+        # SCENARIO 1: IDENTITY IS ALREADY FULLY LOGGED
+        if identity_name in self.session_tracking_database:
+            active_record = self.session_tracking_database[identity_name]
+            time_difference_since_last_frame = current_system_time - active_record["last_seen_timestamp"]
             
-            # Format the current time into a readable string for the CSV report.
+            # Add elapsed time to the dwell counter if tracking was lost for less than 1.5 seconds.
+            if time_difference_since_last_frame < 1.5:
+                active_record["zone_dwell_times_seconds"][active_record["current_zone"]] += time_difference_since_last_frame
+            else:
+                # Inject a 'None' value to break the heatmap tracing line after a prolonged absence.
+                active_record["movement_path_coordinates"].append(None)
+                
+            active_record["last_seen_timestamp"] = current_system_time
+
+            if active_record["current_zone"] != current_zone_identifier:
+                active_record["current_zone"] = current_zone_identifier
+                active_record["total_zone_changes"] += 1
+
+            path_logging_time_difference = current_system_time - active_record["last_path_logged_timestamp"]
+            if path_logging_time_difference >= 1.0:
+                active_record["movement_path_coordinates"].append((face_center_x, face_center_y))
+                active_record["last_path_logged_timestamp"] = current_system_time
+
+            return False, current_zone_identifier
+
+        # SCENARIO 2: INITIAL DETECTION (ADD TO PENDING QUEUE)
+        if identity_name not in self.pending_identities:
+            self.pending_identities[identity_name] = {
+                "first_seen": current_system_time,
+                "last_seen": current_system_time
+            }
+            # Return the zone for immediate UI display, but tracking is not yet committed.
+            return False, current_zone_identifier
+
+        # SCENARIO 3: IDENTITY IS CURRENTLY IN PENDING QUEUE
+        pending_record = self.pending_identities[identity_name]
+        time_since_last_seen = current_system_time - pending_record["last_seen"]
+        total_time_pending = current_system_time - pending_record["first_seen"]
+
+        # Drop the identity from the pending queue if absent for more than 1.5 seconds.
+        if time_since_last_seen > 1.5:
+            del self.pending_identities[identity_name]
+            return False, "LOST TRACK"
+
+        # Update the last seen timestamp to maintain continuity during minor frame drops.
+        pending_record["last_seen"] = current_system_time
+
+        # Commit the identity to the main database once the 1.0-second threshold is reached.
+        if total_time_pending >= 1.0:
             formatted_arrival_time = datetime.now().strftime("%H:%M:%S")
             
-            # Create a new detailed record for the person.
             self.session_tracking_database[identity_name] = {
                 "arrival_time_formatted": formatted_arrival_time,
                 "last_seen_timestamp": current_system_time,
@@ -87,38 +131,12 @@ class SpatialAttendanceTracker:
                 },
                 "movement_path_coordinates": [(face_center_x, face_center_y)]
             }
+            
+            # Remove from the pending queue to prevent duplicate initialization.
+            del self.pending_identities[identity_name]
             return True, current_zone_identifier
 
-        # Retrieve the existing record for the tracked person.
-        active_record = self.session_tracking_database[identity_name]
-
-        # Calculate the exact time spent since the camera last saw the person.
-        time_difference_since_last_frame = current_system_time - active_record["last_seen_timestamp"]
-        
-        # Only add the time if the box disappeared for less than 1.5 seconds.
-        if time_difference_since_last_frame < 1.5:
-            active_record["zone_dwell_times_seconds"][active_record["current_zone"]] += time_difference_since_last_frame
-        else:
-            # If they were gone for more than 1.5 seconds, inject a 'None' to break the heatmap line.
-            active_record["movement_path_coordinates"].append(None)
-            
-        # Update the last seen timestamp to the current time.
-        active_record["last_seen_timestamp"] = current_system_time
-
-        # Check if the person has moved into a completely different grid zone.
-        if active_record["current_zone"] != current_zone_identifier:
-            active_record["current_zone"] = current_zone_identifier
-            active_record["total_zone_changes"] += 1
-
-        # Calculate the time passed since the last movement coordinate was saved.
-        path_logging_time_difference = current_system_time - active_record["last_path_logged_timestamp"]
-        
-        # Save the new coordinate only if one full second has elapsed to prevent micro-movement spam.
-        if path_logging_time_difference >= 1.0:
-            active_record["movement_path_coordinates"].append((face_center_x, face_center_y))
-            active_record["last_path_logged_timestamp"] = current_system_time
-
-        # Return False to indicate this is an update to an existing person, not a new arrival.
+        # The identity is still within the 1-second verification window.
         return False, current_zone_identifier
     
     def generate_reports(self):
