@@ -1,0 +1,322 @@
+[
+  {
+    "epoch": 1,
+    "stage": "head",
+    "train": {
+      "accuracy": 0.5329999923706055,
+      "best_distance_threshold": 0.5432329773902893,
+      "roc_auc": 0.52984,
+      "loss": 0.25713823437690736
+    },
+    "val": {
+      "accuracy": 0.5941666960716248,
+      "best_distance_threshold": 0.29814624786376953,
+      "roc_auc": 0.6145527777777778,
+      "loss": 0.2774888753890991
+    }
+  },
+  {
+    "epoch": 2,
+    "stage": "head",
+    "train": {
+      "accuracy": 0.5630000233650208,
+      "best_distance_threshold": 0.5481312870979309,
+      "roc_auc": 0.577004,
+      "loss": 0.2455286030769348
+    },
+    "val": {
+      "accuracy": 0.6241666674613953,
+      "best_distance_threshold": 0.270851194858551,
+      "roc_auc": 0.6562972222222221,
+      "loss": 0.27139131794373195
+    }
+  },
+  {
+    "epoch": 3,
+    "stage": "head",
+    "train": {
+      "accuracy": 0.6060000061988831,
+      "best_distance_threshold": 0.518836259841919,
+      "roc_auc": 0.6390360000000002,
+      "loss": 0.23201475811004638
+    },
+    "val": {
+      "accuracy": 0.6508333086967468,
+      "best_distance_threshold": 0.42100265622138977,
+      "roc_auc": 0.6935166666666668,
+      "loss": 0.23320263465245564
+    }
+  },
+  {
+    "epoch": 4,
+    "stage": "head",
+    "train": {
+      "accuracy": 0.609000027179718,
+      "best_distance_threshold": 0.4896634817123413,
+      "roc_auc": 0.6366440000000001,
+      "loss": 0.233460897564888
+    },
+    "val": {
+      "accuracy": 0.6625000238418579,
+      "best_distance_threshold": 0.5073432922363281,
+      "roc_auc": 0.7218083333333334,
+      "loss": 0.2170886386434237
+    }
+  },
+  {
+    "epoch": 5,
+    "stage": "head",
+    "train": {
+      "accuracy": 0.6269999742507935,
+      "best_distance_threshold": 0.5526577234268188,
+      "roc_auc": 0.67216,
+      "loss": 0.22376037216186523
+    },
+    "val": {
+      "accuracy": 0.6583333611488342,
+      "best_distance_threshold": 0.39455682039260864,
+      "roc_auc": 0.7167555555555556,
+      "loss": 0.21791869233051936
+    }
+  },
+  {
+    "epoch": 6,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.6399999856948853,
+      "best_distance_threshold": 0.4539130628108978,
+      "roc_auc": 0.68916,
+      "loss": 0.22081535768508911
+    },
+    "val": {
+      "accuracy": 0.6866666674613953,
+      "best_distance_threshold": 0.4232637286186218,
+      "roc_auc": 0.7338583333333334,
+      "loss": 0.21259903271993003
+    }
+  },
+  {
+    "epoch": 7,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.6579999923706055,
+      "best_distance_threshold": 0.5135077834129333,
+      "roc_auc": 0.723772,
+      "loss": 0.20886275935173035
+    },
+    "val": {
+      "accuracy": 0.6800000071525574,
+      "best_distance_threshold": 0.4231592118740082,
+      "roc_auc": 0.7398277777777778,
+      "loss": 0.21201172331968943
+    }
+  },
+  {
+    "epoch": 8,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.6809999942779541,
+      "best_distance_threshold": 0.5625127553939819,
+      "roc_auc": 0.729552,
+      "loss": 0.20530297565460204
+    },
+    "val": {
+      "accuracy": 0.6850000023841858,
+      "best_distance_threshold": 0.45962509512901306,
+      "roc_auc": 0.7385277777777779,
+      "loss": 0.2118456071615219
+    }
+  },
+  {
+    "epoch": 9,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.6549999713897705,
+      "best_distance_threshold": 0.5595679879188538,
+      "roc_auc": 0.69208,
+      "loss": 0.21474210739135743
+    },
+    "val": {
+      "accuracy": 0.6866666674613953,
+      "best_distance_threshold": 0.35571038722991943,
+      "roc_auc": 0.7485083333333333,
+      "loss": 0.20821217348178228
+    }
+  },
+  {
+    "epoch": 10,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.6729999780654907,
+      "best_distance_threshold": 0.45929741859436035,
+      "roc_auc": 0.7075720000000001,
+      "loss": 0.21001201009750367
+    },
+    "val": {
+      "accuracy": 0.6875,
+      "best_distance_threshold": 0.5041238069534302,
+      "roc_auc": 0.746786111111111,
+      "loss": 0.2062951241930326
+    }
+  },
+  {
+    "epoch": 11,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.6919999718666077,
+      "best_distance_threshold": 0.5899621248245239,
+      "roc_auc": 0.7514879999999999,
+      "loss": 0.1964813756942749
+    },
+    "val": {
+      "accuracy": 0.6958333253860474,
+      "best_distance_threshold": 0.44322440028190613,
+      "roc_auc": 0.7648916666666666,
+      "loss": 0.2011124242345492
+    }
+  },
+  {
+    "epoch": 12,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.6740000247955322,
+      "best_distance_threshold": 0.44565391540527344,
+      "roc_auc": 0.7248560000000002,
+      "loss": 0.20644693160057068
+    },
+    "val": {
+      "accuracy": 0.6991666555404663,
+      "best_distance_threshold": 0.44395720958709717,
+      "roc_auc": 0.7595111111111111,
+      "loss": 0.20019487986962
+    }
+  },
+  {
+    "epoch": 13,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.6809999942779541,
+      "best_distance_threshold": 0.49888232350349426,
+      "roc_auc": 0.732108,
+      "loss": 0.20302505934238435
+    },
+    "val": {
+      "accuracy": 0.6958333253860474,
+      "best_distance_threshold": 0.4621932804584503,
+      "roc_auc": 0.7641361111111111,
+      "loss": 0.20029505481322607
+    }
+  },
+  {
+    "epoch": 14,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.7300000190734863,
+      "best_distance_threshold": 0.5892329216003418,
+      "roc_auc": 0.7715279999999999,
+      "loss": 0.1852693120241165
+    },
+    "val": {
+      "accuracy": 0.6991666555404663,
+      "best_distance_threshold": 0.34089982509613037,
+      "roc_auc": 0.7642694444444443,
+      "loss": 0.20042282511790593
+    }
+  },
+  {
+    "epoch": 15,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.7059999704360962,
+      "best_distance_threshold": 0.4752529561519623,
+      "roc_auc": 0.7495879999999999,
+      "loss": 0.19765811896324156
+    },
+    "val": {
+      "accuracy": 0.7116666436195374,
+      "best_distance_threshold": 0.3275494873523712,
+      "roc_auc": 0.7787666666666667,
+      "loss": 0.194291716615359
+    }
+  },
+  {
+    "epoch": 16,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.7020000219345093,
+      "best_distance_threshold": 0.5422331094741821,
+      "roc_auc": 0.751672,
+      "loss": 0.19309865307807922
+    },
+    "val": {
+      "accuracy": 0.7058333158493042,
+      "best_distance_threshold": 0.47830677032470703,
+      "roc_auc": 0.778511111111111,
+      "loss": 0.19287139435609182
+    }
+  },
+  {
+    "epoch": 17,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.6959999799728394,
+      "best_distance_threshold": 0.4561360478401184,
+      "roc_auc": 0.763608,
+      "loss": 0.19286159896850585
+    },
+    "val": {
+      "accuracy": 0.7383333444595337,
+      "best_distance_threshold": 0.45155763626098633,
+      "roc_auc": 0.8118472222222222,
+      "loss": 0.17851229230562846
+    }
+  },
+  {
+    "epoch": 18,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.7080000042915344,
+      "best_distance_threshold": 0.4946005046367645,
+      "roc_auc": 0.7715000000000001,
+      "loss": 0.19091203463077544
+    },
+    "val": {
+      "accuracy": 0.7300000190734863,
+      "best_distance_threshold": 0.4644036889076233,
+      "roc_auc": 0.7971972222222222,
+      "loss": 0.18291870276133218
+    }
+  },
+  {
+    "epoch": 19,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.703000009059906,
+      "best_distance_threshold": 0.47432759404182434,
+      "roc_auc": 0.7523479999999999,
+      "loss": 0.19612520575523376
+    },
+    "val": {
+      "accuracy": 0.7233333587646484,
+      "best_distance_threshold": 0.43103888630867004,
+      "roc_auc": 0.7984527777777778,
+      "loss": 0.18317764441172282
+    }
+  },
+  {
+    "epoch": 20,
+    "stage": "fine_tune",
+    "train": {
+      "accuracy": 0.7319999933242798,
+      "best_distance_threshold": 0.4756365418434143,
+      "roc_auc": 0.792864,
+      "loss": 0.1843046864271164
+    },
+    "val": {
+      "accuracy": 0.7333333492279053,
+      "best_distance_threshold": 0.5200461745262146,
+      "roc_auc": 0.8044861111111111,
+      "loss": 0.17889537831147512
+    }
+  }
+]

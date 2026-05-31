@@ -7,9 +7,10 @@ from pathlib import Path
 
 # APIs from the local project files
 from detection.detector import detect_and_crop_face
-from face_verification.metric_learning.recognition_zhongyu import predict_identity_metric
-from face_verification.metric_learning.build_gallery_zhongyu import main as build_identity_gallery
-from anti_spoofing.liveness_zhongyu import predict_liveness
+from emotion_detection.emotion_detector import EmotionDetector
+from face_verification.metric_learning.recognition_kaixiang import predict_identity
+from face_verification.metric_learning.build_gallery_kaixiang import main as build_identity_gallery
+from anti_spoofing.liveness_kaixiang import predict_liveness
 
 # Authors: Jack (105417647), Patrick (100599029)
 
@@ -20,6 +21,8 @@ class UserInterface:
         app = UserInterface()
         app.start()
     """
+    def __init__(self):
+        self.emotion_detector = EmotionDetector()
 
     def register_employee(self, cropped_img, standardized_img):
         """Tkinter pop-up window for registering a new employee
@@ -86,9 +89,7 @@ class UserInterface:
         root.mainloop()
 
     def video_capture(self):
-        """Live video capture with face detection
-        TODO: Implement face recognition 
-        """
+        """Live video capture with face detection"""
         # Load the custom trained YOLO model from the models folder.
         custom_face_detection_model = YOLO("models/detection_yolo.pt")
 
@@ -117,16 +118,28 @@ class UserInterface:
                 x1, y1, x2, y2 = detection_results["bbox"]
                 
                 # If the anti-spoofing module determines that the face is not real, the bounding box will show grey
-                liveness_result = predict_liveness(detection_results["face_image"])
+                liveness_result = predict_liveness(detection_results["face_image"], checkpoint_path="models/liveness_efficientnetb0_kaixiang_final1_best.pth", threshold=0.81)
                 label = ""
                 color = (150, 150, 150)
                 if liveness_result["liveness"] == "REAL":
-                    classification_result = predict_identity_metric(detection_results["face_image"])
+                    classification_result = predict_identity(
+                        detection_results["face_image"],
+                        gallery_path="models/recognition_gallery_kaixiang.pkl",
+                        model_path="models/recognition_triplet_resnet18_kaixiang_final30b_best.pth",
+                        distance_threshold=0.006,
+                        distance_margin=0.0003,
+                        matching_mode="mean",
+                        )
                     color = (0, 255, 0)
                     if classification_result["similarity_score"] < 0.88:
                         label = "[unknown]"
                     else:
-                        label = f"{classification_result['identity']} {classification_result['similarity_score']}" 
+                        label = f"{classification_result['best_identity']} {classification_result['similarity_score']}" 
+                    
+                    if self.emotion_detector.active == True:
+                        emotion_result = "Emotion: " + self.emotion_detector.detect_emotion(detection_results["raw_face_image"])
+                        cv2.putText(current_video_frame, emotion_result, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+
                 cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(
                     current_video_frame,
@@ -153,6 +166,8 @@ class UserInterface:
                         self.register_employee(detection_results["raw_face_image"], detection_results["face_image"])
                     else:
                         messagebox.showinfo("Anti-spoofing verification", "Face was not clear enough to be verified. Please ensure that your face is fully shown.")
+            elif keyboard_input & 0xFF == ord('e'):
+                self.emotion_detector.toggle_active()
 
         # Release the webcam hardware and close all created graphical windows.
         live_webcam_feed.release()
