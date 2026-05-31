@@ -1,86 +1,65 @@
-"""Fatigue and Drowsiness Detection — Karam's Innovative Feature (D/HD).
+"""Fatigue & Drowsiness Detection — Karam's Innovative Feature (D/HD).
 
-Method (two complementary signals):
-  1. Eye Aspect Ratio (EAR): computed from MediaPipe FaceMesh landmarks.
-     EAR = (||p2-p6|| + ||p3-p5||) / (2 * ||p1-p4||)
-     Falls sharply when the eye closes.
+No MediaPipe. No external landmark libraries.
+Takes a plain 224x224 RGB face image and predicts fatigue state
+using a CNN trained on 4 fatigue indicators:
+  - Closed   → eyes shut        → DROWSY
+  - Open     → eyes open        → ALERT
+  - Yawn     → mouth open       → DROWSY
+  - no_yawn  → normal face      → ALERT
 
-  2. CNN eye-state classifier: EfficientNet-B0 trained on eye crops to
-     classify each eye as open (1) or closed (0) — more robust than raw EAR
-     under poor lighting or glasses.
+Maintains a sliding window (PERCLOS-style) so brief blinks don't
+trigger false alarms — sustained fatigue signals trigger DROWSY.
 
-  3. PERCLOS (sliding window): percentage of frames in the last N frames
-     where both eyes are classified as closed. PERCLOS > threshold → DROWSY.
+Public API (identical contract to other modules):
+    from fatigue_detection import FatigueDetector, predict_fatigue
 
-Public interface:
-    detector = FatigueDetector(model_path="models/fatigue_eye_karam.pth")
+    # Real-time use (maintains window across frames):
+    detector = FatigueDetector()
     result   = detector.update(face_image)
 
-    # or stateless single-frame call:
-    result = predict_fatigue(face_image, model_path="models/fatigue_eye_karam.pth")
+    # Single-frame use:
+    result = predict_fatigue(face_image)
 
     # result → {
     #   "fatigue":      "ALERT" | "DROWSY",
-    #   "ear":          float,   # mean EAR this frame
-    #   "perclos":      float,   # fraction of recent frames with closed eyes
-    #   "confidence":   float,   # CNN closed-eye probability (mean both eyes)
+    #   "indicator":    "Closed" | "Open" | "Yawn" | "no_yawn",
+    #   "confidence":   float,
+    #   "perclos":      float,   # fraction of recent drowsy frames
     # }
-
-Requires:
-    pip install mediapipe
 """
 # Author: Karam (Innovative Feature — D/HD)
 
 from __future__ import annotations
 
+import json
 from collections import deque
 from pathlib import Path
 
 import cv2
 import numpy as np
-import torch
-import torch.nn.functional as F
-from torchvision import models
-from torch import nn
-
-from torchvision import transforms
 
 
-# ── MediaPipe landmark indices for left and right eye ──────────────────────
-# Based on the 468-point FaceMesh topology
-LEFT_EYE_LANDMARKS  = [362, 385, 387, 263, 373, 380]
-RIGHT_EYE_LANDMARKS = [33,  160, 158,  133, 153, 144]
+DEFAULT_MODEL_PATH     = Path("models/fatigue_karam.h5")
+DEFAULT_CLASS_MAP_PATH = Path("models/fatigue_class_indices_karam.json")
+WINDOW_FRAMES          = 30      # ~1 second at 30fps
+PERCLOS_THRESHOLD      = 0.30    # >30% drowsy frames → DROWSY
+IMAGE_SIZE             = (224, 224)
 
-EAR_THRESHOLD     = 0.21   # raw EAR below this → eye likely closed
-PERCLOS_THRESHOLD = 0.25   # >25 % closed frames in window → DROWSY
-WINDOW_FRAMES     = 30     # rolling window size (≈1 second at 30 fps)
+# Classes that indicate fatigue/drowsiness
+DROWSY_CLASSES = {"Closed", "Yawn"}
+ALERT_CLASSES  = {"Open", "no_yawn"}
 
-DEFAULT_MODEL_PATH = Path("models/fatigue_eye_karam.pth")
-
-IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
-IMAGENET_STD  = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
-
-_PREPROCESS = transforms.Compose([
-    transforms.ToPILImage(),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-])
-
-_cached_mp_face_mesh = None
-_cached_cnn_model    = None
-_cached_cnn_path: Path | None = None
+_cached_model      = None
+_cached_model_path: Path | None = None
+_cached_class_map: dict | None  = None
 
 
 class FatigueDetector:
-    """Stateful per-session fatigue detector with PERCLOS tracking.
+    """Stateful real-time fatigue detector with sliding-window PERCLOS.
 
-    Instantiate once and call ``update(face_image)`` on every frame.
-    Maintains a rolling deque so PERCLOS is computed across real time.
-
-    Args:
-        model_path:        Path to trained eye-state CNN checkpoint.
-        window_frames:     Number of frames in the PERCLOS window.
-        perclos_threshold: Fraction of closed-eye frames to trigger DROWSY.
+    Instantiate once and call update() every webcam frame.
+    Call reset() when switching to a different person.
     """
 
     def __init__(
@@ -93,175 +72,89 @@ class FatigueDetector:
         self._perclos_threshold = perclos_threshold
         self._window: deque[int] = deque(maxlen=window_frames)
 
-    def update(self, face_image: np.ndarray) -> dict[str, object]:
-        """Process one frame and return the current fatigue assessment.
+    def update(self, face_image: np.ndarray) -> dict:
+        """Process one frame and return current fatigue assessment.
 
         Args:
-            face_image: 224×224 RGB numpy array (same contract as other modules).
+            face_image: 224x224 RGB numpy array.
 
         Returns:
-            Fatigue result dictionary (see module docstring).
+            {fatigue, indicator, confidence, perclos}
         """
-        ear, cnn_closed_prob = _analyse_frame(face_image, self._model_path)
+        indicator, confidence = _predict_frame(face_image, self._model_path)
 
-        # Use CNN probability as primary signal; EAR as fallback
-        if cnn_closed_prob is not None:
-            eyes_closed = int(cnn_closed_prob > 0.5)
-        else:
-            eyes_closed = int(ear < EAR_THRESHOLD) if ear is not None else 0
+        is_drowsy = indicator in DROWSY_CLASSES if indicator else False
+        self._window.append(int(is_drowsy))
 
-        self._window.append(eyes_closed)
         perclos = sum(self._window) / max(len(self._window), 1)
-
         fatigue = "DROWSY" if perclos > self._perclos_threshold else "ALERT"
 
         return {
             "fatigue":    fatigue,
-            "ear":        round(float(ear), 4) if ear is not None else None,
+            "indicator":  indicator or "Unknown",
+            "confidence": round(confidence, 4),
             "perclos":    round(perclos, 4),
-            "confidence": round(float(cnn_closed_prob), 4) if cnn_closed_prob is not None else None,
         }
 
     def reset(self) -> None:
-        """Clear the rolling window (call between different people)."""
+        """Clear the PERCLOS window — call between different people."""
         self._window.clear()
 
 
 def predict_fatigue(
     face_image: np.ndarray,
     model_path: str | Path = DEFAULT_MODEL_PATH,
-) -> dict[str, object]:
-    """Single-frame fatigue prediction — no PERCLOS window.
-
-    Useful for quick integration tests. For real-time use, prefer
-    FatigueDetector so the PERCLOS window persists across frames.
-
-    Args:
-        face_image: 224×224 RGB numpy array.
-        model_path: Path to trained eye-state CNN checkpoint.
-
-    Returns:
-        Fatigue result dictionary (perclos will be 0.0 or 1.0 for one frame).
-    """
+) -> dict:
+    """Single-frame fatigue prediction with no rolling window."""
     detector = FatigueDetector(model_path=model_path, window_frames=1)
     return detector.update(face_image)
 
 
-# ── Internal helpers ───────────────────────────────────────────────────────
+# ── Internal helpers ────────────────────────────────────────────────────────
 
-def _analyse_frame(
+def _predict_frame(
     face_image: np.ndarray,
     model_path: Path,
-) -> tuple[float | None, float | None]:
-    """Return (mean_EAR, cnn_closed_probability) for one face image."""
-    # 1. EAR via MediaPipe landmarks
-    ear = _compute_ear(face_image)
+) -> tuple[str | None, float]:
+    """Run the CNN on one face crop. Returns (class_label, confidence)."""
+    model, class_map = _get_model_and_classes(model_path)
+    if model is None:
+        return None, 0.0
 
-    # 2. CNN eye-crop classification
-    cnn_prob = _cnn_eye_closed_prob(face_image, model_path)
+    # Preprocess: resize to 224x224, normalise to [0,1]
+    resized = cv2.resize(face_image, IMAGE_SIZE, interpolation=cv2.INTER_AREA)
+    batch   = np.expand_dims(resized.astype("float32") / 255.0, axis=0)
 
-    return ear, cnn_prob
-
-
-def _compute_ear(face_image: np.ndarray) -> float | None:
-    """Compute mean Eye Aspect Ratio using MediaPipe FaceMesh."""
-    global _cached_mp_face_mesh
-    try:
-        import mediapipe as mp
-    except ImportError:
-        return None   # mediapipe not installed — fall back to CNN only
-
-    if _cached_mp_face_mesh is None:
-        _cached_mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
-            static_image_mode=False,
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-        )
-
-    results = _cached_mp_face_mesh.process(face_image)
-    if not results.multi_face_landmarks:
-        return None
-
-    landmarks = results.multi_face_landmarks[0].landmark
-    h, w = face_image.shape[:2]
-
-    def lm(idx):
-        pt = landmarks[idx]
-        return np.array([pt.x * w, pt.y * h])
-
-    left_ear  = _ear_from_landmarks([lm(i) for i in LEFT_EYE_LANDMARKS])
-    right_ear = _ear_from_landmarks([lm(i) for i in RIGHT_EYE_LANDMARKS])
-    return (left_ear + right_ear) / 2.0
+    probs   = model.predict(batch, verbose=0)[0]
+    idx     = int(np.argmax(probs))
+    label   = class_map.get(idx, f"class_{idx}")
+    return label, float(probs[idx])
 
 
-def _ear_from_landmarks(pts: list[np.ndarray]) -> float:
-    """EAR = (||p2-p6|| + ||p3-p5||) / (2 * ||p1-p4||)."""
-    p1, p2, p3, p4, p5, p6 = pts
-    vertical   = np.linalg.norm(p2 - p6) + np.linalg.norm(p3 - p5)
-    horizontal = 2.0 * np.linalg.norm(p1 - p4)
-    return float(vertical / max(horizontal, 1e-6))
-
-
-def _cnn_eye_closed_prob(face_image: np.ndarray, model_path: Path) -> float | None:
-    """Return the CNN's probability that the eyes are closed."""
-    global _cached_cnn_model, _cached_cnn_path
+def _get_model_and_classes(model_path: Path):
+    global _cached_model, _cached_model_path, _cached_class_map
 
     resolved = model_path.resolve()
+
     if not resolved.exists():
-        return None   # model not trained yet
+        return None, {}
 
-    if _cached_cnn_model is None or _cached_cnn_path != resolved:
-        _cached_cnn_model = _load_eye_cnn(resolved)
-        _cached_cnn_path  = resolved
+    if _cached_model is not None and _cached_model_path == resolved:
+        return _cached_model, _cached_class_map
 
-    model  = _cached_cnn_model
-    device = next(model.parameters()).device
+    import tensorflow as tf
+    _cached_model      = tf.keras.models.load_model(str(resolved))
+    _cached_model_path = resolved
 
-    tensor = _PREPROCESS(face_image).unsqueeze(0).to(device)
-    with torch.no_grad():
-        logits = model(tensor)
-        probs  = F.softmax(logits, dim=1).squeeze(0).cpu().numpy()
+    # Load class index map saved during training
+    class_map_path = resolved.parent / "fatigue_class_indices_karam.json"
+    if class_map_path.exists():
+        with class_map_path.open() as f:
+            raw = json.load(f)
+        # raw = {"Closed": 0, "Open": 1, ...}  → flip to {0: "Closed", ...}
+        _cached_class_map = {v: k for k, v in raw.items()}
+    else:
+        # Fallback order if json missing
+        _cached_class_map = {0: "Closed", 1: "Open", 2: "Yawn", 3: "no_yawn"}
 
-    # class 0 = closed, class 1 = open  →  return P(closed)
-    return float(probs[0])
-
-
-def _load_eye_cnn(model_path: Path):
-    """Load the trained EyeStateModel checkpoint."""
-    device     = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    checkpoint = torch.load(model_path, map_location=device)
-
-    # Rebuild the same architecture used in train_fatigue_karam.py
-    backbone = models.efficientnet_b0(weights=None)
-    in_feats = backbone.classifier[1].in_features
-    backbone.classifier = nn.Identity()
-
-    model = nn.Sequential(
-        backbone,
-        nn.Dropout(p=0.3),
-        nn.Linear(in_feats, 64),
-        nn.ReLU(inplace=True),
-        nn.Linear(64, 2),
-    )
-
-    # Wrap so state_dict keys match
-    class _EyeStateModel(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.backbone   = backbone
-            self.classifier = nn.Sequential(
-                nn.Dropout(p=0.3),
-                nn.Linear(in_feats, 64),
-                nn.ReLU(inplace=True),
-                nn.Linear(64, 2),
-            )
-        def forward(self, x):
-            return self.classifier(self.backbone(x))
-
-    m = _EyeStateModel()
-    m.load_state_dict(checkpoint["model_state_dict"])
-    m.to(device)
-    m.eval()
-    return m
+    return _cached_model, _cached_class_map
