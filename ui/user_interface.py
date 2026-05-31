@@ -16,9 +16,6 @@ from anti_spoofing.liveness_kaixiang import predict_liveness
 import os
 from face_verification.classification_model.face_comparator_patrick import PatrickFaceVerifier
 # ==============================================================================
-# --- HD SPATIAL TRACKING (PATRICK LUNNEY) ---
-from spatial_tracking_hd_patrick.spatial_tracker_hd_patrick import SpatialAttendanceTracker
-# ==============================================================================
 
 # Authors: Jack (105417647), Patrick (100599029)
 
@@ -105,19 +102,6 @@ class UserInterface:
         # Request a resolution of 1280x720 pixels from the webcam hardware.
         live_webcam_feed.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         live_webcam_feed.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-
-        # ==============================================================================
-        # --- HD SPATIAL TRACKING (PATRICK LUNNEY) ---
-        # Retrieve the default hardware resolution of the active webcam.
-        camera_frame_width = int(live_webcam_feed.get(cv2.CAP_PROP_FRAME_WIDTH))
-        camera_frame_height = int(live_webcam_feed.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-        # Instantiate the spatial tracker with the exact camera dimensions.
-        attendance_tracker = SpatialAttendanceTracker(
-            camera_frame_width=camera_frame_width,
-            camera_frame_height=camera_frame_height
-        )
-        # ==============================================================================
 
         # ==============================================================================
         # --- SUPERVISED CLASSIFICATION MODEL INTEGRATION (PATRICK LUNNEY) ---
@@ -222,19 +206,10 @@ class UserInterface:
                     # ==============================================================================
 
                     color = (0, 255, 0)
-                    if classification_result["similarity_score"] < 0.70:
+                    if classification_result["similarity_score"] < 0.88:
                         label = "[unknown]"
                     else:
                         label = f"{classification_result['best_identity']} {classification_result['similarity_score']}" 
-
-                        # ==============================================================================
-                        # --- HD SPATIAL TRACKING (PATRICK LUNNEY) ---
-                        # Pass the identified person and coordinates to the spatial tracking database.
-                        attendance_tracker.log_person(
-                            identity_name=classification_result['best_identity'],
-                            bounding_box_coordinates=[x1, y1, x2, y2]
-                        )
-                        # ==============================================================================
 
                 cv2.rectangle(current_video_frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(
@@ -246,15 +221,6 @@ class UserInterface:
                     color,
                     2,
                 )
-            
-            # ==============================================================================
-            # --- HD SPATIAL TRACKING (PATRICK LUNNEY) ---
-            # Draw the faint 3x3 spatial grid over the final video frame before display.
-            cv2.line(current_video_frame, (int(camera_frame_width / 3), 0), (int(camera_frame_width / 3), camera_frame_height), (200, 200, 200), 1)
-            cv2.line(current_video_frame, (int(camera_frame_width / 3 * 2), 0), (int(camera_frame_width / 3 * 2), camera_frame_height), (200, 200, 200), 1)
-            cv2.line(current_video_frame, (0, int(camera_frame_height / 3)), (camera_frame_width, int(camera_frame_height / 3)), (200, 200, 200), 1)
-            cv2.line(current_video_frame, (0, int(camera_frame_height / 3 * 2)), (camera_frame_width, int(camera_frame_height / 3 * 2)), (200, 200, 200), 1)
-            # ==============================================================================
 
             # Display a new image frame in a new desktop window that includes the drawn bounding boxes and labels.
             cv2.imshow("Face Detection Live Test", current_video_frame)
@@ -271,12 +237,6 @@ class UserInterface:
                         self.register_employee(detection_results["raw_face_image"], detection_results["face_image"])
                     else:
                         messagebox.showinfo("Anti-spoofing verification", "Face was not clear enough to be verified. Please ensure that your face is fully shown.")
-
-        # ==============================================================================
-        # --- HD SPATIAL TRACKING (PATRICK LUNNEY) ---
-        # Generate the CSV logs and heatmap visualisations after the video loop terminates.
-        attendance_tracker.generate_reports()
-        # ==============================================================================
 
         # Release the webcam hardware and close all created graphical windows.
         live_webcam_feed.release()
