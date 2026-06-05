@@ -1,0 +1,9 @@
+metric,value
+pair_count,4851
+positive_pair_count,122
+negative_pair_count,4729
+verification_accuracy,0.975263
+best_threshold,0.946452
+auc,0.87993
+tpr_at_best_threshold,0.02459
+fpr_at_best_threshold,0.000211

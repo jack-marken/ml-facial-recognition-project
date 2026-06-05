@@ -21,8 +21,10 @@ from pathlib import Path
 
 try:
     from .model_factory_zhongyu import build_liveness_model
+    from .reporting_liveness_zhongyu import save_liveness_report
 except ImportError:
     from model_factory_zhongyu import build_liveness_model
+    from reporting_liveness_zhongyu import save_liveness_report
 
 
 def parse_args(
@@ -44,9 +46,16 @@ def parse_args(
         help="Dataset root containing train/val/test folders.",
     )
     parser.add_argument("--epochs", type=int, default=20)
-    parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--train-base", action="store_true")
+    parser.add_argument(
+        "--disable-augmentation",
+        action="store_true",
+        help="Disable Kaixiang-style training augmentation.",
+    )
+    parser.add_argument("--early-stopping-patience", type=int, default=5)
     parser.add_argument(
         "--output",
         default=default_output,
@@ -60,6 +69,11 @@ def parse_args(
         action="store_true",
         default=default_save_weights_only,
         help="Save only model weights. Output path must end with .weights.h5.",
+    )
+    parser.add_argument(
+        "--report-dir",
+        default="anti_spoofing/report_liveness_zhongyu",
+        help="Directory for training tables and figures.",
     )
     return parser.parse_args()
 
@@ -80,11 +94,12 @@ def main(
     data_dir = Path(args.data_dir)
     train_dir = data_dir / "train"
     val_dir = data_dir / "val"
+    test_dir = data_dir / "test"
 
-    if not train_dir.exists() or not val_dir.exists():
+    if not train_dir.exists() or not val_dir.exists() or not test_dir.exists():
         raise FileNotFoundError(
-            "Expected dataset folders at datasets/liveness/train and "
-            "datasets/liveness/val."
+            "Expected dataset folders at datasets/liveness/train, "
+            "datasets/liveness/val, and datasets/liveness/test."
         )
 
     train_dataset = tf.keras.utils.image_dataset_from_directory(
@@ -105,17 +120,51 @@ def main(
         batch_size=args.batch_size,
         shuffle=False,
     )
+    test_dataset = tf.keras.utils.image_dataset_from_directory(
+        test_dir,
+        labels="inferred",
+        label_mode="binary",
+        class_names=["spoof", "real"],
+        image_size=(224, 224),
+        batch_size=args.batch_size,
+        shuffle=False,
+    )
 
     autotune = tf.data.AUTOTUNE
+    if not args.disable_augmentation:
+        augmentation = tf.keras.Sequential(
+            [
+                tf.keras.layers.RandomFlip("horizontal"),
+                tf.keras.layers.RandomZoom(height_factor=(-0.12, 0.0), width_factor=(-0.12, 0.0)),
+                tf.keras.layers.RandomRotation(0.045),
+                tf.keras.layers.RandomContrast(0.2),
+                tf.keras.layers.RandomBrightness(0.2),
+            ],
+            name="kaixiang_style_liveness_augmentation",
+        )
+        train_dataset = train_dataset.map(
+            lambda images, labels: (augmentation(images, training=True), labels),
+            num_parallel_calls=autotune,
+        )
+
     train_dataset = train_dataset.prefetch(autotune)
     val_dataset = val_dataset.prefetch(autotune)
+    test_dataset = test_dataset.prefetch(autotune)
 
     model = build_liveness_model(
         architecture=args.architecture,
         train_base=args.train_base,
     )
+    try:
+        optimizer = tf.keras.optimizers.AdamW(
+            learning_rate=args.learning_rate,
+            weight_decay=args.weight_decay,
+        )
+    except AttributeError:
+        optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate)
+
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=args.learning_rate),
+        optimizer=optimizer,
         loss="binary_crossentropy",
         metrics=[
             "accuracy",
@@ -138,12 +187,12 @@ def main(
         ),
         tf.keras.callbacks.EarlyStopping(
             monitor="val_loss",
-            patience=5,
+            patience=args.early_stopping_patience,
             restore_best_weights=True,
         ),
     ]
 
-    model.fit(
+    history = model.fit(
         train_dataset,
         validation_data=val_dataset,
         epochs=args.epochs,
@@ -154,6 +203,16 @@ def main(
     else:
         model.save(output_path)
     print(f"Saved liveness model to {output_path}")
+    save_liveness_report(
+        model=model,
+        history=history,
+        args=args,
+        output_path=output_path,
+        data_dir=data_dir,
+        report_root=Path(args.report_dir),
+        test_dataset=test_dataset,
+    )
+    print(f"Saved liveness report artifacts to {Path(args.report_dir) / args.architecture}")
 
 
 if __name__ == "__main__":

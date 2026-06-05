@@ -1,0 +1,2 @@
+model_name,distance_metric,auc,verification_accuracy
+resnet34,cosine_similarity,0.87993,0.975263

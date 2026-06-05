@@ -1,0 +1,2 @@
+model_name,distance_metric,auc,verification_accuracy
+efficientnet_b0,cosine_similarity,0.779465,0.975057
